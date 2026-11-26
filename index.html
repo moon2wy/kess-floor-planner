@@ -141,6 +141,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
 .selected-size { margin: 5px 0 10px; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 .object-actions { gap: 7px; }
 .object-actions button { flex: 1; }
+#mobile-object-actions, .mobile-selection { display: none; }
 .collision-status { background: #fff0ed; color: var(--danger); border: 1px solid #f0c8c2; border-radius: 7px; padding: 8px; margin: 10px 0 0; font-size: 14px; line-height: 1.45; }
 .readouts { list-style: none; padding: 0; margin: 4px 0 0; }
 .readouts li { display: flex; justify-content: space-between; align-items: center; gap: 7px; padding: 7px 0; border-bottom: 1px solid #edf2f6; font-size: 14px; }
@@ -164,6 +165,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
 }
 @media (max-width: 690px) {
   .workspace { display: block; padding-top: 10px; }
+  .board { overflow: clip; }
   .topbar { flex-wrap: wrap; padding-block: 11px; }
   .identity { gap: 9px; }
   .brand { width: 51px; height: 40px; font-size: 14px; }
@@ -171,6 +173,10 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   .file-actions button { font-size: 14px; padding-inline: 9px; min-height: 36px; }
   .viewport { height: min(65dvh, 660px); min-height: 385px; }
   .toolbar { padding-inline: 7px; }
+  #mobile-object-actions { display: block; position: sticky; top: 0; z-index: 2; background: #f5f8fc; border-bottom: 1px solid var(--line); }
+  #mobile-object-actions .object-actions { min-height: 54px; gap: 6px; padding: 5px 8px; }
+  #mobile-object-actions button { flex: none; min-height: 44px; padding-inline: 8px; }
+  .mobile-selection { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 700; }
   .history { gap: 4px; }
   .history button { padding-inline: 6px; }
   .board-footer { font-size: 13px; }
@@ -215,6 +221,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
           <button id="reset" type="button">기본 배치로</button>
         </div>
       </div>
+      <div id="mobile-object-actions" aria-label="선택한 가구 편집"></div>
       <div id="viewport" class="viewport" data-mode="select">
         <svg xmlns="http://www.w3.org/2000/svg" font-family="Malgun Gothic, Apple SD Gothic Neo, Noto Sans CJK KR, sans-serif" font-weight="400" data-d-component="svg" fill="#222222" style="color:#222222" viewBox="-850 -750 11600 13250" width="1160" height="1325" data-plan="3" id="scene" aria-label="KESS 2층 기본 배치 3안">
   <rect x="-850" y="-750" width="11600" height="13250" fill="#FFFFFF" />
@@ -398,9 +405,12 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
         <div id="selection-details" hidden>
           <p id="selected-name" class="selected-name"></p>
           <p id="selected-size" class="selected-size"></p>
-          <div class="object-actions">
-            <button id="rotate" type="button" title="90도 회전 (R)">90° 회전</button>
-            <button id="flip" type="button" title="좌우 반전 (F)">좌우 반전</button>
+          <div id="desktop-object-actions">
+            <div id="object-actions" class="object-actions">
+              <span id="mobile-selection" class="mobile-selection"></span>
+              <button id="rotate" type="button" title="90도 회전 (R)">90° 회전</button>
+              <button id="flip" type="button" title="좌우 반전 (F)">좌우 반전</button>
+            </div>
           </div>
           <p id="collision-status" class="collision-status" hidden></p>
           <h3>가까운 간격</h3>
@@ -543,6 +553,8 @@ const byId = id => document.getElementById(id);
 const scene = byId('scene');
 const viewport = byId('viewport');
 const annotations = byId('annotation-layer');
+const furnitureActions = byId('object-actions');
+const mobileScreen = matchMedia('(max-width: 690px)');
 const ns = 'http://www.w3.org/2000/svg';
 const items = new Map(PLAN.furniture.map(item => [item.id, { ...item, node: byId(item.id) }]));
 const fixed = PLAN.fixed.map(part => ({ ...part, ...Geometry.shape(part.outline, part.segments), isFloor: part.bounds === true }));
@@ -784,8 +796,10 @@ function drawSelection(gaps, collisionNames) {
   detail.hidden = !selected;
   empty.hidden = Boolean(selected);
   swatch.hidden = !selected;
-  if (!selected) return;
   const item = items.get(selected);
+  byId('mobile-selection').textContent = item?.name ?? '가구를 선택하세요';
+  byId('rotate').disabled = byId('flip').disabled = !item || mode !== 'select';
+  if (!selected) return;
   const pose = state.poses[selected];
   const turned = pose.angle % 180 !== 0;
   byId('selected-name').textContent = item.name;
@@ -1061,6 +1075,13 @@ byId('reset').onclick = () => {
 };
 byId('rotate').onclick = rotateSelected;
 byId('flip').onclick = flipSelected;
+
+function positionFurnitureActions() {
+  byId(mobileScreen.matches ? 'mobile-object-actions' : 'desktop-object-actions').append(furnitureActions);
+}
+mobileScreen.addEventListener('change', positionFurnitureActions);
+positionFurnitureActions();
+
 byId('clear-measurements').onclick = () => {
   edit(() => { state.measures = []; });
   byId('erase-mode').focus();
