@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="KESS 2층 가구 배치를 편집하고 간격을 재는 도구">
-  <title>KESS 2층 배치 편집기</title>
+  <title>KESS 사무실 배치 편집기</title>
   <style>:root {
   color-scheme: light;
   font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
@@ -95,7 +95,7 @@ h1 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 750; letter-sp
 .segmented { gap: 4px; background: #edf2f8; border-radius: 9px; padding: 4px; }
 .segmented button { border: 0; min-height: 34px; padding: 5px 11px; background: transparent; color: var(--muted); }
 .segmented button[aria-pressed="true"] { color: #204e8b; background: #fff; box-shadow: 0 1px 3px #193c6825; }
-.plan-switch a {
+.plan-switch button {
   display: grid;
   place-items: center;
   min-width: 42px;
@@ -108,9 +108,9 @@ h1 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 750; letter-sp
   font-size: 14px;
   font-weight: 700;
 }
-.plan-switch a:hover { background: #e1eafa; }
-.plan-switch a:focus-visible { outline: 2px solid #1f66be; outline-offset: 2px; }
-.plan-switch a[aria-current="page"] { color: white; background: var(--blue); }
+.plan-switch button:hover { background: #e1eafa; }
+.plan-switch button:focus-visible { outline: 2px solid #1f66be; outline-offset: 2px; }
+.plan-switch button[aria-pressed="true"] { color: white; background: var(--blue); }
 #erase-mode { display: inline-flex; align-items: center; gap: 6px; }
 .eraser-icon { width: 13px; height: 9px; border: 1.5px solid currentColor; border-radius: 2px; transform: rotate(-40deg); background: linear-gradient(90deg, transparent 47%, currentColor 47%, currentColor 56%, transparent 56%); }
 .history { gap: 6px; flex-wrap: wrap; }
@@ -161,7 +161,11 @@ h1 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 750; letter-sp
   box-shadow: 0 3px 12px #203d571c;
 }
 .create-form label { display: grid; gap: 3px; font-size: 13px; color: var(--muted); }
-.create-form input { width: 86px; min-height: 36px; padding: 5px 8px; border: 1px solid #b7c8da; border-radius: 6px; background: white; color: var(--ink); font: inherit; }
+.create-form input, .create-form select { width: 86px; min-height: 36px; padding: 5px 8px; border: 1px solid #b7c8da; border-radius: 6px; background: white; color: var(--ink); font: inherit; }
+.create-form select { width: auto; max-width: 100%; }
+.rename-form { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.rename-form label { flex: 1 0 100%; color: var(--muted); font-size: 13px; }
+.rename-form input { flex: 1; min-width: 100px; padding: 6px 8px; border: 1px solid #b7c8da; border-radius: 6px; font: inherit; }
 #delete-custom { color: var(--danger); }
 .room-handle:focus { outline: none; }
 .room-handle:focus-visible .room-grip circle { stroke-width: 45; }
@@ -216,7 +220,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   .file-actions button { font-size: 14px; padding-inline: 9px; min-height: 36px; }
   .viewport { height: min(65svh, 660px); min-height: 385px; }
   .toolbar { padding-inline: 7px; }
-  .plan-switch a { min-width: 44px; min-height: 44px; }
+  .plan-switch button { min-width: 44px; min-height: 44px; }
   #mobile-object-actions { display: block; position: sticky; top: 0; z-index: 2; background: #f5f8fc; border-bottom: 1px solid var(--line); }
   #mobile-object-actions .object-actions { min-height: 54px; gap: 6px; padding: 5px 8px; }
   #mobile-object-actions button { flex: none; min-height: 44px; padding-inline: 8px; }
@@ -240,7 +244,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   <header class="topbar">
     <div class="identity">
       <div class="brand">KESS</div>
-      <div><h1>2층 배치 편집기</h1><p id="save-status" class="save-status">1안 · 기본 배치</p></div>
+      <div><h1 id="editor-title">2층 배치 편집기</h1><p id="save-status" class="save-status">1안 · 기본 배치</p></div>
     </div>
     <div class="file-actions">
       <button id="copy-link" type="button" hidden>링크 복사</button>
@@ -252,9 +256,15 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   <main class="workspace">
     <section class="board" aria-label="배치 편집 도면">
       <div class="toolbar">
-        <nav class="segmented plan-switch" aria-label="배치안 선택">
-          <a id="plan-one-link" href="?plan=1" aria-current="page">1안</a>
-          <a id="plan-two-link" href="?plan=2">2안</a>
+        <nav class="segmented plan-switch" aria-label="층 선택">
+          <button id="floor-2-link" type="button" aria-pressed="true">2층</button>
+          <button id="floor-3-link" type="button" aria-pressed="false">3층</button>
+          <button id="floor-4-link" type="button" aria-pressed="false">4층</button>
+          <button id="floor-5-link" type="button" aria-pressed="false">5층</button>
+        </nav>
+        <nav id="plan-switch" class="segmented plan-switch" aria-label="배치안 선택">
+          <button id="plan-one-link" type="button" aria-pressed="true">1안</button>
+          <button id="plan-two-link" type="button" aria-pressed="false">2안</button>
         </nav>
         <div class="segmented" aria-label="도면 도구">
           <button id="select-mode" aria-pressed="true" type="button">가구 이동</button>
@@ -493,8 +503,17 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   <g id="creation-preview" pointer-events="none" />
   <g id="annotation-layer" pointer-events="none" /></svg>
         <div id="create-form" class="create-form" hidden>
-          <label>가로 (mm) <input id="create-width" type="number" min="1" max="100000" step="1" value="1200" inputmode="numeric"></label>
-          <label>세로 (mm) <input id="create-height" type="number" min="1" max="100000" step="1" value="700" inputmode="numeric"></label>
+          <label>가구 종류
+            <select id="create-kind">
+              <option value="rectangle">사각형</option>
+              <option value="desk-1600-left">1,600 × 1,200 · 좌향</option>
+              <option value="desk-1600-right">1,600 × 1,200 · 우향</option>
+              <option value="desk-1400-left">1,400 × 1,200 · 좌향</option>
+              <option value="desk-1400-right">1,400 × 1,200 · 우향</option>
+            </select>
+          </label>
+          <label id="create-width-field">가로 (mm) <input id="create-width" type="number" min="1" max="100000" step="1" value="1200" inputmode="numeric"></label>
+          <label id="create-height-field">세로 (mm) <input id="create-height" type="number" min="1" max="100000" step="1" value="700" inputmode="numeric"></label>
           <button id="cancel-create" type="button">취소</button>
         </div>
         <div class="zoom" aria-label="확대 도구">
@@ -514,6 +533,11 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
         <div id="selection-details" hidden>
           <p id="selected-name" class="selected-name"></p>
           <p id="selected-size" class="selected-size"></p>
+          <form id="rename-form" class="rename-form">
+            <label for="furniture-name">가구 이름</label>
+            <input id="furniture-name" type="text" maxlength="48" placeholder="기본 이름" autocomplete="off">
+            <button type="submit">이름 저장</button>
+          </form>
           <div id="desktop-object-actions">
             <div id="object-actions" class="object-actions">
               <span id="mobile-selection" class="mobile-selection"></span>
@@ -532,11 +556,107 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   </main>
   <div id="toast" class="toast" role="status" hidden></div>
   <section id="print-sheet" aria-hidden="true"></section>
+  <template id="floor-3-background">
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <polygon points="0,0 9580,0 9580,10598 0,12300" fill="#fff"/>
+    <defs><clipPath id="level-3-outline"><polygon points="0,0 9580,0 9580,10598 0,12300"/></clipPath></defs>
+    <g clip-path="url(#level-3-outline)">
+    <rect x="0" y="0" width="599" height="1897" fill="#20252b"/>
+    <rect x="7987" y="1198" width="599" height="599" fill="#20252b"/>
+    <rect x="0" y="10199" width="399" height="603" fill="#20252b"/>
+    <rect x="7987" y="10199" width="599" height="603" fill="#20252b"/>
+    <rect x="599" y="0" width="8981" height="399" fill="#f5e9dc"/>
+    </g>
+    <line x1="5890" y1="10802" x2="6689" y2="10802" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="0" y1="0" x2="9580" y2="0" stroke="#35414a" stroke-width="27"/>
+    <line x1="599" y1="399" x2="9580" y2="399" stroke="#35414a" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="0" y1="1897" x2="599" y2="1897" stroke="#35414a" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="5890" y1="3799" x2="9580" y2="3799" stroke="#35414a" stroke-width="27"/>
+    <line x1="5890" y1="4003" x2="6789" y2="4003" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="399" y1="5006" x2="1198" y2="5006" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="0" y1="5006" x2="399" y2="5006" stroke="#35414a" stroke-width="27"/>
+    <line x1="1198" y1="5006" x2="5890" y2="5006" stroke="#35414a" stroke-width="27"/>
+    <line x1="5890" y1="4003" x2="5890" y2="4802" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="5890" y1="9899" x2="5890" y2="10802" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="5890" y1="3799" x2="5890" y2="4003" stroke="#35414a" stroke-width="27"/>
+    <line x1="5890" y1="4802" x2="5890" y2="9899" stroke="#35414a" stroke-width="27"/>
+    <line x1="5890" y1="10802" x2="5890" y2="11202" stroke="#35414a" stroke-width="27"/>
+    <line x1="9580" y1="0" x2="9580" y2="10598" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="0" x2="0" y2="3106" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="4006" x2="0" y2="10199" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="10802" x2="0" y2="12300" stroke="#35414a" stroke-width="27"/>
+    <line x1="399" y1="5006" x2="399" y2="5805" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="0" y1="3106" x2="0" y2="4006" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <path d="M9580 10598 L0 12300" fill="none" stroke="#35414a" stroke-width="28"/>
+    <text x="0" y="-530" font-size="290" font-weight="700" fill="#192b42">3층</text>
+    <text x="4790.0" y="-250" text-anchor="middle" fill="#536378" font-size="190">9,580 mm</text>
+    <text x="10090" y="5299.0" transform="rotate(90 10090 5299.0)" text-anchor="middle" fill="#536378" font-size="190">10,598 mm</text>
+    </svg>
+  </template>
+  <template id="floor-4-background">
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <polygon points="0,0 9496,0 9496,10927 0,12679" fill="#fff"/>
+    <defs><clipPath id="level-4-outline"><polygon points="0,0 9496,0 9496,10927 0,12679"/></clipPath></defs>
+    <g clip-path="url(#level-4-outline)">
+    <rect x="0" y="0" width="594" height="1962" fill="#20252b"/>
+    <rect x="7917" y="1236" width="594" height="623" fill="#20252b"/>
+    <rect x="0" y="10515" width="396" height="618" fill="#20252b"/>
+    <rect x="7917" y="10515" width="594" height="618" fill="#20252b"/>
+    </g>
+    <line x1="0" y1="0" x2="9496" y2="0" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="1962" x2="594" y2="1962" stroke="#35414a" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="9496" y1="0" x2="9496" y2="10927" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="0" x2="0" y2="2996" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="4643" x2="0" y2="10515" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="11133" x2="0" y2="12679" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="2996" x2="0" y2="4643" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <path d="M9496 10927 L0 12679" fill="none" stroke="#35414a" stroke-width="28"/>
+    <text x="0" y="-530" font-size="290" font-weight="700" fill="#192b42">4층</text>
+    <text x="4748.0" y="-250" text-anchor="middle" fill="#536378" font-size="190">9,496 mm</text>
+    <text x="10006" y="5463.5" transform="rotate(90 10006 5463.5)" text-anchor="middle" fill="#536378" font-size="190">10,927 mm</text>
+    </svg>
+  </template>
+  <template id="floor-5-background">
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <polygon points="0,0 9598,0 9598,10257 0,11900" fill="#fff"/>
+    <defs><clipPath id="level-5-outline"><polygon points="0,0 9598,0 9598,10257 0,11900"/></clipPath></defs>
+    <g clip-path="url(#level-5-outline)">
+    <rect x="0" y="0" width="600" height="1836" fill="#20252b"/>
+    <rect x="8002" y="1160" width="600" height="579" fill="#20252b"/>
+    <rect x="0" y="9870" width="400" height="580" fill="#20252b"/>
+    <rect x="8002" y="9870" width="600" height="580" fill="#20252b"/>
+    <rect x="600" y="0" width="8998" height="1160" fill="#e5efdb"/>
+    <rect x="600" y="1160" width="7402" height="2710" fill="#e5efdb"/>
+    <rect x="8602" y="1160" width="996" height="9097" fill="#e5efdb"/>
+    <rect x="8002" y="1739" width="600" height="2131" fill="#e5efdb"/>
+    <rect x="0" y="1836" width="600" height="2034" fill="#e5efdb"/>
+    <rect x="8602" y="10257" width="701" height="96" fill="#e5efdb"/>
+    <rect x="8602" y="10353" width="100" height="97" fill="#e5efdb"/>
+    </g>
+    <line x1="6202" y1="7261" x2="8602" y2="7261" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="0" x2="9598" y2="0" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="1836" x2="600" y2="1836" stroke="#35414a" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="0" y1="3870" x2="9598" y2="3870" stroke="#35414a" stroke-width="27"/>
+    <line x1="6202" y1="6580" x2="6902" y2="6580" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="6202" y1="5706" x2="6202" y2="6580" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="6202" y1="3870" x2="6202" y2="5706" stroke="#35414a" stroke-width="27"/>
+    <line x1="6202" y1="6580" x2="6202" y2="7261" stroke="#35414a" stroke-width="27"/>
+    <line x1="8602" y1="3870" x2="8602" y2="10450" stroke="#35414a" stroke-width="27"/>
+    <line x1="9598" y1="0" x2="9598" y2="10257" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="2996" x2="0" y2="4643" stroke="#a55431" stroke-width="27" stroke-dasharray="85 45"/>
+    <line x1="0" y1="0" x2="0" y2="2996" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="4643" x2="0" y2="9870" stroke="#35414a" stroke-width="27"/>
+    <line x1="0" y1="10450" x2="0" y2="11900" stroke="#35414a" stroke-width="27"/>
+    <path d="M9598 10257 L0 11900" fill="none" stroke="#35414a" stroke-width="28"/>
+    <text x="0" y="-530" font-size="290" font-weight="700" fill="#192b42">5층</text>
+    </svg>
+  </template>
   <template id="plan-two-background">
     <svg xmlns="http://www.w3.org/2000/svg"><rect x="-650" y="-700" width="11000" height="13700" fill="#FFFFFF" /><polygon points="0,0 9597,0 9597,10723 0,12500" fill="#FFFFFF" stroke="#222222" stroke-width="40" /><path d="M0 0 H9597 V400 H1130 V1868 H625 V400 H0 Z" fill="#F3E5D7" /><rect x="9197" y="400" width="400" height="3945" fill="#F3E5D7" /><rect x="0" y="0" width="625" height="1868" fill="#171717" /><polygon points="3744,7189 9597,7189 9597,10723 3744,11807" fill="#F0F1F3" stroke="#222222" stroke-width="30" /><rect x="8000" y="1200" width="625" height="625" fill="#171717" /><rect x="8000" y="9900" width="625" height="625" fill="#171717" /><rect x="0" y="10400" width="600" height="625" fill="#171717" /><text x="300" y="10770" font-size="175" text-anchor="middle" fill="#FFFFFF">기둥</text><path d="M0 7189 H3744" stroke="#D97745" stroke-width="20" stroke-dasharray="90 65" fill="none" /><path d="M680 5650 H4200 V6990 M4100 6860 L4200 6990 L4300 6860" stroke="#888888" stroke-width="22" stroke-dasharray="85 65" fill="none" /><text x="2900" y="5500" font-size="210" text-anchor="middle" fill="#777777">주 이동 통로</text><rect x="4850" y="5250" width="2520" height="1550" rx="60" stroke="#BBBBBB" stroke-width="18" stroke-dasharray="80 65" fill="none" /><text x="6110" y="5930" font-size="235" text-anchor="middle" fill="#888888">여유 공간</text><text x="6110" y="6220" font-size="195" text-anchor="middle" fill="#888888">2,520 × 1,550</text><rect x="3744" y="7189" width="1000" height="310" fill="#FFFFFF" stroke="#222222" stroke-width="25" /><text x="4244" y="7410" font-size="190" fill="#222222" text-anchor="middle">출입문</text><text x="5900" y="7860" font-size="320" font-weight="bold" fill="#333333" text-anchor="middle">대표이사실</text><g stroke="#777777" stroke-width="15" fill="none"><path d="M0 -170 V-420 M9597 -170 V-420 M0 -300 H9597" /><path d="M9750 0 H10030 M9750 10723 H10030 M9900 0 V10723" /><path d="M0 10300 V10150 M600 10300 V10150 M0 10220 H600" /></g><g font-size="200" text-anchor="middle" fill="#555555"><text x="4798" y="-400" font-size="240">9,597mm</text><text x="10160" y="5360" transform="rotate(90 10160 5360)">10,723mm</text><text x="300" y="10100">600</text></g><text x="0" y="-455" font-size="270" font-weight="700" fill="#333333">2안</text></svg>
   </template>
   <script>const PLAN_ONE = {"furniture": [{"id": "fridge", "name": "냉장고", "color": "#7a8591", "outline": [[580.0, 0.0], [582.6105, 0.1711], [585.1764, 0.6815], [587.6537, 1.5224], [590.0, 2.6795], [592.1752, 4.1329], [594.1421, 5.8579], [595.8671, 7.8248], [597.3205, 10.0], [598.4776, 12.3463], [599.3185, 14.8236], [599.8289, 17.3895], [600.0, 20.0], [600.0, 1280.0], [599.8289, 1282.6105], [599.3185, 1285.1764], [598.4776, 1287.6537], [597.3205, 1290.0], [595.8671, 1292.1752], [594.1421, 1294.1421], [592.1752, 1295.8671], [590.0, 1297.3205], [587.6537, 1298.4776], [585.1764, 1299.3185], [582.6105, 1299.8289], [580.0, 1300.0], [20.0, 1300.0], [17.3895, 1299.8289], [14.8236, 1299.3185], [12.3463, 1298.4776], [10.0, 1297.3205], [7.8248, 1295.8671], [5.8579, 1294.1421], [4.1329, 1292.1752], [2.6795, 1290.0], [1.5224, 1287.6537], [0.6815, 1285.1764], [0.1711, 1282.6105], [0.0, 1280.0], [0.0, 20.0], [0.1711, 17.3895], [0.6815, 14.8236], [1.5224, 12.3463], [2.6795, 10.0], [4.1329, 7.8248], [5.8579, 5.8579], [7.8248, 4.1329], [10.0, 2.6795], [12.3463, 1.5224], [14.8236, 0.6815], [17.3895, 0.1711], [20.0, 0.0]], "w": 600.0, "h": 1300.0, "center": [300.0, 650.0], "default": {"x": 0.0, "y": 1868.0, "angle": 0, "flip": false}}, {"id": "ceo-desk", "name": "대표님 책상", "color": "#56728e", "outline": [[0, 0], [1800, 0], [1800, 850], [600.0, 850.0], [590.25, 850.25], [581.0, 851.0], [572.25, 852.25], [564.0, 854.0], [556.25, 856.25], [549.0, 859.0], [542.25, 862.25], [536.0, 866.0], [530.25, 870.25], [525.0, 875.0], [520.25, 880.25], [516.0, 886.0], [512.25, 892.25], [509.0, 899.0], [506.25, 906.25], [504.0, 914.0], [502.25, 922.25], [501.0, 931.0], [500.25, 940.25], [500.0, 950.0], [500, 1800], [0, 1800]], "w": 1800, "h": 1800, "center": [900.0, 900.0], "default": {"x": 600.0, "y": 9999.0, "angle": 0, "flip": false}}, {"id": "meeting-table", "name": "6인용 회의 테이블", "color": "#a48c65", "outline": [[1125.0, 0.0], [1134.7895, 0.6416], [1144.4114, 2.5556], [1153.7013, 5.709], [1162.5, 10.0481], [1170.6571, 15.4985], [1178.033, 21.967], [1184.5015, 29.3429], [1189.9519, 37.5], [1194.291, 46.2987], [1197.4444, 55.5886], [1199.3584, 65.2105], [1200.0, 75.0], [1200.0, 2325.0], [1199.3584, 2334.7895], [1197.4444, 2344.4114], [1194.291, 2353.7013], [1189.9519, 2362.5], [1184.5015, 2370.6571], [1178.033, 2378.033], [1170.6571, 2384.5015], [1162.5, 2389.9519], [1153.7013, 2394.291], [1144.4114, 2397.4444], [1134.7895, 2399.3584], [1125.0, 2400.0], [75.0, 2400.0], [65.2105, 2399.3584], [55.5886, 2397.4444], [46.2987, 2394.291], [37.5, 2389.9519], [29.3429, 2384.5015], [21.967, 2378.033], [15.4985, 2370.6571], [10.0481, 2362.5], [5.709, 2353.7013], [2.5556, 2344.4114], [0.6416, 2334.7895], [0.0, 2325.0], [0.0, 75.0], [0.6416, 65.2105], [2.5556, 55.5886], [5.709, 46.2987], [10.0481, 37.5], [15.4985, 29.3429], [21.967, 21.967], [29.3429, 15.4985], [37.5, 10.0481], [46.2987, 5.709], [55.5886, 2.5556], [65.2105, 0.6416], [75.0, 0.0]], "w": 1200.0, "h": 2400.0, "center": [600.0, 1200.0], "default": {"x":1270,"y":6800,"angle":0,"flip":false}}, {"id": "copier", "name": "복합기", "color": "#697583", "outline": [[0.0, 0.0], [700.0, 0.0], [700.0, 700.0], [0.0, 700.0]], "w": 700.0, "h": 700.0, "center": [350.0, 350.0], "default": {"x": 3900.0, "y": 5989.0, "angle": 0, "flip": false}}, {"id": "it-new", "name": "전산팀원 · 신규", "color": "#3369b3", "outline": [[0.0, 0.0], [0.0, 1600.0], [700.0, 1600.0], [700.0, 850.0], [700.375, 835.375], [701.5, 821.5], [703.375, 808.375], [706.0, 796.0], [709.375, 784.375], [713.5, 773.5], [718.375, 763.375], [724.0, 754.0], [730.375, 745.375], [737.5, 737.5], [745.375, 730.375], [754.0, 724.0], [763.375, 718.375], [773.5, 713.5], [784.375, 709.375], [796.0, 706.0], [808.375, 703.375], [821.5, 701.5], [835.375, 700.375], [850.0, 700.0], [1200.0, 700.0], [1200.0, 0.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x":1830,"y":2700,"angle":180,"flip":true}}, {"id": "hr-new", "name": "인사팀원 · 신규", "color": "#3369b3", "outline": [[0.0, 1600.0], [0.0, 0.0], [700.0, 0.0], [700.0, 750.0], [700.375, 764.625], [701.5, 778.5], [703.375, 791.625], [706.0, 804.0], [709.375, 815.625], [713.5, 826.5], [718.375, 836.625], [724.0, 846.0], [730.375, 854.625], [737.5, 862.5], [745.375, 869.625], [754.0, 876.0], [763.375, 881.625], [773.5, 886.5], [784.375, 890.625], [796.0, 894.0], [808.375, 896.625], [821.5, 898.5], [835.375, 899.625], [850.0, 900.0], [1200.0, 900.0], [1200.0, 1600.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x":3690,"y":2700,"angle":0,"flip":false}}, {"id": "esg", "name": "ESG팀원", "color": "#3369b3", "outline": [[0.0, 0.0], [0.0, 1600.0], [700.0, 1600.0], [700.0, 850.0], [700.375, 835.375], [701.5, 821.5], [703.375, 808.375], [706.0, 796.0], [709.375, 784.375], [713.5, 773.5], [718.375, 763.375], [724.0, 754.0], [730.375, 745.375], [737.5, 737.5], [745.375, 730.375], [754.0, 724.0], [763.375, 718.375], [773.5, 713.5], [784.375, 709.375], [796.0, 706.0], [808.375, 703.375], [821.5, 701.5], [835.375, 700.375], [850.0, 700.0], [1200.0, 700.0], [1200.0, 0.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x": 3690, "y": 1100.0, "angle": 0, "flip": false}}, {"id": "it", "name": "전산팀원", "color": "#3369b3", "outline": [[0.0, 1600.0], [0.0, 0.0], [700.0, 0.0], [700.0, 750.0], [700.375, 764.625], [701.5, 778.5], [703.375, 791.625], [706.0, 804.0], [709.375, 815.625], [713.5, 826.5], [718.375, 836.625], [724.0, 846.0], [730.375, 854.625], [737.5, 862.5], [745.375, 869.625], [754.0, 876.0], [763.375, 881.625], [773.5, 886.5], [784.375, 890.625], [796.0, 894.0], [808.375, 896.625], [821.5, 898.5], [835.375, 899.625], [850.0, 900.0], [1200.0, 900.0], [1200.0, 1600.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x":1830,"y":1100,"angle":180,"flip":true}}, {"id": "hr-1", "name": "인사팀원 · 상단", "color": "#3369b3", "outline": [[0.0, 0.0], [0.0, 1600.0], [700.0, 1600.0], [700.0, 850.0], [700.375, 835.375], [701.5, 821.5], [703.375, 808.375], [706.0, 796.0], [709.375, 784.375], [713.5, 773.5], [718.375, 763.375], [724.0, 754.0], [730.375, 745.375], [737.5, 737.5], [745.375, 730.375], [754.0, 724.0], [763.375, 718.375], [773.5, 713.5], [784.375, 709.375], [796.0, 706.0], [808.375, 703.375], [821.5, 701.5], [835.375, 700.375], [850.0, 700.0], [1200.0, 700.0], [1200.0, 0.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x": 5540, "y": 1100.0, "angle": 0, "flip": false}}, {"id": "hr-2", "name": "인사팀원 · 하단", "color": "#3369b3", "outline": [[0.0, 1600.0], [0.0, 0.0], [700.0, 0.0], [700.0, 750.0], [700.375, 764.625], [701.5, 778.5], [703.375, 791.625], [706.0, 804.0], [709.375, 815.625], [713.5, 826.5], [718.375, 836.625], [724.0, 846.0], [730.375, 854.625], [737.5, 862.5], [745.375, 869.625], [754.0, 876.0], [763.375, 881.625], [773.5, 886.5], [784.375, 890.625], [796.0, 894.0], [808.375, 896.625], [821.5, 898.5], [835.375, 899.625], [850.0, 900.0], [1200.0, 900.0], [1200.0, 1600.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x": 5540, "y": 2700.0, "angle": 0, "flip": false}}, {"id": "strategy-head", "name": "전략기획본부장", "color": "#3369b3", "outline": [[694.0, 0.0], [694.7832, 0.0513], [695.5529, 0.2044], [696.2961, 0.4567], [697.0, 0.8038], [697.6526, 1.2399], [698.2426, 1.7574], [698.7601, 2.3474], [699.1962, 3.0], [699.5433, 3.7039], [699.7956, 4.4471], [699.9487, 5.2168], [700.0, 6.0], [700.0, 1594.0], [699.9487, 1594.7832], [699.7956, 1595.5529], [699.5433, 1596.2961], [699.1962, 1597.0], [698.7601, 1597.6526], [698.2426, 1598.2426], [697.6526, 1598.7601], [697.0, 1599.1962], [696.2961, 1599.5433], [695.5529, 1599.7956], [694.7832, 1599.9487], [694.0, 1600.0], [6.0, 1600.0], [5.2168, 1599.9487], [4.4471, 1599.7956], [3.7039, 1599.5433], [3.0, 1599.1962], [2.3474, 1598.7601], [1.7574, 1598.2426], [1.2399, 1597.6526], [0.8038, 1597.0], [0.4567, 1596.2961], [0.2044, 1595.5529], [0.0513, 1594.7832], [0.0, 1594.0], [0.0, 6.0], [0.0513, 5.2168], [0.2044, 4.4471], [0.4567, 3.7039], [0.8038, 3.0], [1.2399, 2.3474], [1.7574, 1.7574], [2.3474, 1.2399], [3.0, 0.8038], [3.7039, 0.4567], [4.4471, 0.2044], [5.2168, 0.0513], [6.0, 0.0]], "w": 700.0, "h": 1600.0, "center": [350.0, 800.0], "default": {"x": 7400.0, "y": 1825, "angle": 0, "flip": false}}, {"id": "finance-1a", "name": "재무팀원 · 1열 상단", "color": "#3d8e38", "outline": [[0.0, 0.0], [0.0, 1600.0], [700.0, 1600.0], [700.0, 850.0], [700.375, 835.375], [701.5, 821.5], [703.375, 808.375], [706.0, 796.0], [709.375, 784.375], [713.5, 773.5], [718.375, 763.375], [724.0, 754.0], [730.375, 745.375], [737.5, 737.5], [745.375, 730.375], [754.0, 724.0], [763.375, 718.375], [773.5, 713.5], [784.375, 709.375], [796.0, 706.0], [808.375, 703.375], [821.5, 701.5], [835.375, 700.375], [850.0, 700.0], [1200.0, 700.0], [1200.0, 0.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x": 3900.0, "y": 7812.36, "angle": 0, "flip": false}}, {"id": "finance-1b", "name": "재무팀원 · 1열 하단", "color": "#3d8e38", "outline": [[0.0, 1600.0], [0.0, 0.0], [700.0, 0.0], [700.0, 750.0], [700.375, 764.625], [701.5, 778.5], [703.375, 791.625], [706.0, 804.0], [709.375, 815.625], [713.5, 826.5], [718.375, 836.625], [724.0, 846.0], [730.375, 854.625], [737.5, 862.5], [745.375, 869.625], [754.0, 876.0], [763.375, 881.625], [773.5, 886.5], [784.375, 890.625], [796.0, 894.0], [808.375, 896.625], [821.5, 898.5], [835.375, 899.625], [850.0, 900.0], [1200.0, 900.0], [1200.0, 1600.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x": 3900.0, "y": 9412.36, "angle": 0, "flip": false}}, {"id": "finance-lead", "name": "재무팀장 · 2열 상단", "color": "#3d8e38", "outline": [[0.0, 0.0], [0.0, 1600.0], [700.0, 1600.0], [700.0, 850.0], [700.375, 835.375], [701.5, 821.5], [703.375, 808.375], [706.0, 796.0], [709.375, 784.375], [713.5, 773.5], [718.375, 763.375], [724.0, 754.0], [730.375, 745.375], [737.5, 737.5], [745.375, 730.375], [754.0, 724.0], [763.375, 718.375], [773.5, 713.5], [784.375, 709.375], [796.0, 706.0], [808.375, 703.375], [821.5, 701.5], [835.375, 700.375], [850.0, 700.0], [1200.0, 700.0], [1200.0, 0.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x": 5850.0, "y": 7812.36, "angle": 0, "flip": false}}, {"id": "finance-2b", "name": "재무팀원 · 2열 하단", "color": "#3d8e38", "outline": [[0.0, 1600.0], [0.0, 0.0], [700.0, 0.0], [700.0, 750.0], [700.375, 764.625], [701.5, 778.5], [703.375, 791.625], [706.0, 804.0], [709.375, 815.625], [713.5, 826.5], [718.375, 836.625], [724.0, 846.0], [730.375, 854.625], [737.5, 862.5], [745.375, 869.625], [754.0, 876.0], [763.375, 881.625], [773.5, 886.5], [784.375, 890.625], [796.0, 894.0], [808.375, 896.625], [821.5, 898.5], [835.375, 899.625], [850.0, 900.0], [1200.0, 900.0], [1200.0, 1600.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x": 5850.0, "y": 9412.36, "angle": 0, "flip": false}}, {"id": "finance-head", "name": "재무기획본부장", "color": "#3d8e38", "outline": [[0.0, 1600.0], [0.0, 0.0], [700.0, 0.0], [700.0, 750.0], [700.375, 764.625], [701.5, 778.5], [703.375, 791.625], [706.0, 804.0], [709.375, 815.625], [713.5, 826.5], [718.375, 836.625], [724.0, 846.0], [730.375, 854.625], [737.5, 862.5], [745.375, 869.625], [754.0, 876.0], [763.375, 881.625], [773.5, 886.5], [784.375, 890.625], [796.0, 894.0], [808.375, 896.625], [821.5, 898.5], [835.375, 899.625], [850.0, 900.0], [1200.0, 900.0], [1200.0, 1600.0]], "w": 1200.0, "h": 1600.0, "center": [600.0, 800.0], "default": {"x": 7828.0, "y": 8289.0, "angle": 0, "flip": false}}], "fixed": [{"id": "floor", "name": "외곽 벽", "outline": [[0.0, 0.0], [9597.0, 0.0], [9597.0, 10723.0], [0.0, 11938.0]], "bounds": true}, {"id": "north-band", "name": "상단 고정 구역", "outline": [[625, 0], [9597, 0], [9597, 400], [1130, 400], [1130, 1868], [625, 1868]]}, {"id": "east-band", "name": "우측 고정 구역", "outline": [[9197, 400], [9597, 400], [9597, 4345], [9197, 4345]]}, {"id": "pillar-nw", "name": "좌측 상단 기둥", "outline": [[0, 0], [625, 0], [625, 1868], [0, 1868]]}, {"id": "pillar-n", "name": "우측 상단 기둥", "outline": [[8000, 1200], [8625, 1200], [8625, 1825], [8000, 1825]]}, {"id": "pillar-sw", "name": "대표이사실 기둥", "outline": [[0, 9964], [600, 9964], [600, 10589], [0, 10589]]}, {"id": "pillar-se", "name": "재무팀 기둥", "outline": [[7828, 9889], [8553, 9889], [8553, 10514], [7828, 10514]]}, {"id": "main-entry", "name": "사무실 출입구", "outline": [[0, 4200], [550, 4200], [550, 5100], [0, 5100]]}], "viewBox": [-850.0, -750.0, 11600.0, 13250.0], "revision": "plan3-600-v1"};
-const PLAN_TWO = {"poses":{"fridge":{"x":0,"y":1868,"angle":0,"flip":false},"ceo-desk":{"x":7797,"y":8100,"angle":270,"flip":false},"meeting-table":{"x":5000,"y":8150,"angle":90,"flip":false},"copier":{"x":7370,"y":5889,"angle":0,"flip":false},"it-new":{"x":1830,"y":2700,"angle":180,"flip":true},"hr-new":{"x":200,"y":6660,"angle":90,"flip":false},"esg":{"x":1850,"y":6660,"angle":90,"flip":false},"it":{"x":3800,"y":2700,"angle":0,"flip":false},"hr-1":{"x":200,"y":8430,"angle":270,"flip":true},"hr-2":{"x":1850,"y":8430,"angle":270,"flip":true},"strategy-head":{"x":1400,"y":9950,"angle":90,"flip":false},"finance-1a":{"x":1830,"y":1100,"angle":0,"flip":false},"finance-1b":{"x":3800,"y":1100,"angle":180,"flip":true},"finance-lead":{"x":5770,"y":1100,"angle":0,"flip":false},"finance-2b":{"x":5770,"y":2700,"angle":0,"flip":false},"finance-head":{"x":7750,"y":1825,"angle":0,"flip":false}},"fixed":[{"id":"north-band","name":"상단 고정 구역","outline":[[625,0],[9597,0],[9597,400],[1130,400],[1130,1868],[625,1868]]},{"id":"east-band","name":"우측 고정 구역","outline":[[9197,400],[9597,400],[9597,4345],[9197,4345]]},{"id":"pillar-nw","name":"좌측 상단 기둥","outline":[[0,0],[625,0],[625,1868],[0,1868]]},{"id":"pillar-n","name":"우측 상단 기둥","outline":[[8000,1200],[8625,1200],[8625,1825],[8000,1825]]},{"id":"main-entry","name":"사무실 출입구","outline":[[0,4200],[550,4200],[550,5100],[0,5100]]},{"id":"floor","name":"외곽 벽","bounds":true,"outline":[[0,0],[9597,0],[9597,10723],[0,12500]]},{"id":"pillar-sw","name":"좌측 하단 기둥","outline":[[0,10400],[600,10400],[600,11025],[0,11025]]},{"id":"pillar-se","name":"대표이사실 기둥","outline":[[8000,9900],[8625,9900],[8625,10525],[8000,10525]]},{"id":"room-top-wall","name":"대표이사실 윗벽","segments":[[[4744,7189],[9597,7189]]]},{"id":"room-left-wall","name":"대표이사실 왼쪽 벽","segments":[[[3744,7189],[3744,11807]]]},{"id":"room-entry","name":"대표이사실 출입문","outline":[[3744,7189],[4744,7189],[4744,7499],[3744,7499]]}],"viewBox":[-650,-700,11000,13700],"revision":"plan2-v1"};</script>
+const PLAN_TWO = {"poses":{"fridge":{"x":0,"y":1868,"angle":0,"flip":false},"ceo-desk":{"x":7797,"y":8100,"angle":270,"flip":false},"meeting-table":{"x":5000,"y":8150,"angle":90,"flip":false},"copier":{"x":7370,"y":5889,"angle":0,"flip":false},"it-new":{"x":1830,"y":2700,"angle":180,"flip":true},"hr-new":{"x":200,"y":6660,"angle":90,"flip":false},"esg":{"x":1850,"y":6660,"angle":90,"flip":false},"it":{"x":3800,"y":2700,"angle":0,"flip":false},"hr-1":{"x":200,"y":8430,"angle":270,"flip":true},"hr-2":{"x":1850,"y":8430,"angle":270,"flip":true},"strategy-head":{"x":1400,"y":9950,"angle":90,"flip":false},"finance-1a":{"x":1830,"y":1100,"angle":0,"flip":false},"finance-1b":{"x":3800,"y":1100,"angle":180,"flip":true},"finance-lead":{"x":5770,"y":1100,"angle":0,"flip":false},"finance-2b":{"x":5770,"y":2700,"angle":0,"flip":false},"finance-head":{"x":7750,"y":1825,"angle":0,"flip":false}},"fixed":[{"id":"north-band","name":"상단 고정 구역","outline":[[625,0],[9597,0],[9597,400],[1130,400],[1130,1868],[625,1868]]},{"id":"east-band","name":"우측 고정 구역","outline":[[9197,400],[9597,400],[9597,4345],[9197,4345]]},{"id":"pillar-nw","name":"좌측 상단 기둥","outline":[[0,0],[625,0],[625,1868],[0,1868]]},{"id":"pillar-n","name":"우측 상단 기둥","outline":[[8000,1200],[8625,1200],[8625,1825],[8000,1825]]},{"id":"main-entry","name":"사무실 출입구","outline":[[0,4200],[550,4200],[550,5100],[0,5100]]},{"id":"floor","name":"외곽 벽","bounds":true,"outline":[[0,0],[9597,0],[9597,10723],[0,12500]]},{"id":"pillar-sw","name":"좌측 하단 기둥","outline":[[0,10400],[600,10400],[600,11025],[0,11025]]},{"id":"pillar-se","name":"대표이사실 기둥","outline":[[8000,9900],[8625,9900],[8625,10525],[8000,10525]]},{"id":"room-top-wall","name":"대표이사실 윗벽","segments":[[[4744,7189],[9597,7189]]]},{"id":"room-left-wall","name":"대표이사실 왼쪽 벽","segments":[[[3744,7189],[3744,11807]]]},{"id":"room-entry","name":"대표이사실 출입문","outline":[[3744,7189],[4744,7189],[4744,7499],[3744,7499]]}],"viewBox":[-650,-700,11000,13700],"revision":"plan2-v1"};
+const UPPER_FLOORS = {"3": {"viewBox": [-820, -1060, 11220, 14160], "fixed": [{"id": "floor", "name": "외곽 벽", "outline": [[0, 0], [9580, 0], [9580, 10598], [0, 12300]], "bounds": true}, {"id": "pillar-1", "name": "기둥", "outline": [[0, 0], [599, 0], [599, 1897], [0, 1897]]}, {"id": "pillar-2", "name": "기둥", "outline": [[7987, 1198], [8586, 1198], [8586, 1797], [7987, 1797]]}, {"id": "pillar-3", "name": "기둥", "outline": [[0, 10199], [399, 10199], [399, 10802], [0, 10802]]}, {"id": "pillar-4", "name": "기둥", "outline": [[7987, 10199], [8586, 10199], [8586, 10802], [7987, 10802]]}, {"id": "wall-1", "name": "내부 벽", "segments": [[[5890, 3799], [9580, 3799]]]}, {"id": "wall-2", "name": "내부 벽", "segments": [[[0, 5006], [399, 5006]]]}, {"id": "wall-3", "name": "내부 벽", "segments": [[[1198, 5006], [5890, 5006]]]}, {"id": "wall-4", "name": "내부 벽", "segments": [[[5890, 3799], [5890, 4003]]]}, {"id": "wall-5", "name": "내부 벽", "segments": [[[5890, 4802], [5890, 9899]]]}, {"id": "wall-6", "name": "내부 벽", "segments": [[[5890, 10802], [5890, 11202]]]}], "revision": "floor3-v1", "furniture": []}, "4": {"viewBox": [-820, -1060, 11136, 14539], "fixed": [{"id": "floor", "name": "외곽 벽", "outline": [[0, 0], [9496, 0], [9496, 10927], [0, 12679]], "bounds": true}, {"id": "pillar-1", "name": "기둥", "outline": [[0, 0], [594, 0], [594, 1962], [0, 1962]]}, {"id": "pillar-2", "name": "기둥", "outline": [[7917, 1236], [8511, 1236], [8511, 1859], [7917, 1859]]}, {"id": "pillar-3", "name": "기둥", "outline": [[0, 10515], [396, 10515], [396, 11133], [0, 11133]]}, {"id": "pillar-4", "name": "기둥", "outline": [[7917, 10515], [8511, 10515], [8511, 11133], [7917, 11133]]}], "revision": "floor4-v1", "furniture": []}, "5": {"viewBox": [-820, -1060, 11238, 13760], "fixed": [{"id": "floor", "name": "외곽 벽", "outline": [[0, 0], [9598, 0], [9598, 10257], [0, 11900]], "bounds": true}, {"id": "pillar-1", "name": "기둥", "outline": [[0, 0], [600, 0], [600, 1836], [0, 1836]]}, {"id": "pillar-2", "name": "기둥", "outline": [[8002, 1160], [8602, 1160], [8602, 1739], [8002, 1739]]}, {"id": "pillar-3", "name": "기둥", "outline": [[0, 9870], [400, 9870], [400, 10450], [0, 10450]]}, {"id": "pillar-4", "name": "기둥", "outline": [[8002, 9870], [8602, 9870], [8602, 10450], [8002, 10450]]}, {"id": "wall-1", "name": "내부 벽", "segments": [[[6202, 7261], [8602, 7261]]]}, {"id": "wall-2", "name": "내부 벽", "segments": [[[0, 3870], [9598, 3870]]]}, {"id": "wall-3", "name": "내부 벽", "segments": [[[6202, 3870], [6202, 5706]]]}, {"id": "wall-4", "name": "내부 벽", "segments": [[[6202, 6580], [6202, 7261]]]}, {"id": "wall-5", "name": "내부 벽", "segments": [[[8602, 3870], [8602, 10450]]]}], "revision": "floor5-v1", "furniture": []}};</script>
   <script>const Geometry = (() => {
   const epsilon = 1e-7;
   const subtract = (a, b) => [a[0] - b[0], a[1] - b[1]];
@@ -662,43 +782,26 @@ if (typeof module === 'object') module.exports = Geometry;
 const byId = id => document.getElementById(id);
 const scene = byId('scene');
 const viewport = byId('viewport');
-const annotations = byId('annotation-layer');
+let annotations;
 const furnitureActions = byId('object-actions');
 const mobileScreen = matchMedia('(max-width: 690px)');
 const ns = 'http://www.w3.org/2000/svg';
 const openingUrl = new URL(location.href);
-const planNumber = openingUrl.searchParams.get('plan') === '2' ? 2 : 1;
-const planName = `${planNumber}안`;
-const PLAN = planNumber === 2 ? {
-  ...PLAN_TWO,
-  furniture: PLAN_ONE.furniture.map(item => ({ ...item, default: PLAN_TWO.poses[item.id] })),
-} : PLAN_ONE;
-
-if (planNumber === 2) {
-  const background = byId('plan-two-background').content.querySelector('svg');
-  byId('plan-background').replaceChildren(...background.children);
-  scene.setAttribute('viewBox', PLAN.viewBox.join(' '));
-  scene.setAttribute('width', PLAN.viewBox[2] / 10);
-  scene.setAttribute('height', PLAN.viewBox[3] / 10);
-  scene.dataset.plan = planNumber;
-  scene.setAttribute('aria-label', `KESS 2층 배치 ${planName}`);
-  byId('plan-one-link').removeAttribute('aria-current');
-  byId('plan-two-link').setAttribute('aria-current', 'page');
-  byId('ceo-wall-handle').remove();
-  byId('plan-one-table-chair').remove();
-}
-document.querySelector('.plan-switch [aria-current="page"]').addEventListener('click', event => event.preventDefault());
-
-const items = new Map(PLAN.furniture.map(item => {
-  const node = byId(item.id);
-  const labels = Array.from(node.querySelectorAll('[data-label-box]'), element => {
-    const area = element.dataset.labelBox.split(' ').map(Number);
-    return { element, area, bounds: element.getBBox() };
-  });
-  return [item.id, { ...item, node, labels }];
-}));
-const fixed = PLAN.fixed.filter(part => part.id !== 'main-entry')
-  .map(part => ({ ...part, ...Geometry.shape(part.outline, part.segments), isFloor: part.bounds === true }));
+const baseScene = scene.cloneNode(true);
+const plans = {
+  1: PLAN_ONE,
+  2: { ...PLAN_TWO, furniture: PLAN_ONE.furniture.map(item => ({ ...item, default: PLAN_TWO.poses[item.id] })) },
+};
+const floorButtons = new Map([2, 3, 4, 5].map(floor => [floor, byId('floor-' + floor + '-link')]));
+const layoutSessions = new Map();
+let lastSecondFloorPlan = 1;
+let floorNumber;
+let planNumber;
+let planName;
+let PLAN;
+let items;
+let fixed;
+let saveKey;
 const entry = { width: 550, height: 900, minY: 1868, startY: 4200 };
 const roomLimits = {
   originalTop: 7189,
@@ -714,7 +817,8 @@ const roomNames = {
   'room-right-wall': '대표이사실 옆벽',
   'door-swing': '대표이사실 출입문 회전 구역',
 };
-const saveKey = `kess-floor-planner:${PLAN.revision}`;
+const deskPresets = new Map([1600, 1400].flatMap(w => ['left', 'right'].map(side =>
+  [`desk-${w}-${side}`, { w, h: 1200 }])));
 const layoutVersion = 7;
 const previousArrangement = {"1":{"meeting-table":{"x":600,"y":6950,"angle":90,"flip":false},"it-new":{"x":1830,"y":1100,"angle":0,"flip":false},"hr-new":{"x":1830,"y":2700,"angle":0,"flip":false},"it":{"x":3690,"y":2700,"angle":0,"flip":false}},"2":{"hr-new":{"x":200,"y":6800,"angle":90,"flip":false},"esg":{"x":1850,"y":6800,"angle":90,"flip":false},"hr-1":{"x":200,"y":8500,"angle":270,"flip":true},"hr-2":{"x":1850,"y":8500,"angle":270,"flip":true}}};
 const previousDefaultPoses = {
@@ -755,80 +859,152 @@ const fresh = () => ({
   poses: Object.fromEntries(PLAN.furniture.map(item => [item.id, { ...item.default }])),
   measures: [],
   custom: {},
-  entryY: entry.startY,
+  names: {},
+  ...(planNumber ? { entryY: entry.startY } : {}),
   ...(planNumber === 1 ? { room: { extension: 1200 } } : {}),
 });
 const copyState = value => JSON.parse(JSON.stringify(value));
 const sameState = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-let state = fresh();
+let state;
 let canStore = true;
-const openBase = openingUrl.searchParams.get('start') === 'base';
-try {
-  const saved = openBase ? null : JSON.parse(localStorage.getItem(saveKey) ?? 'null');
-  if (state.room && Number.isFinite(saved?.room?.extension)) {
-    state.room.extension = clampExtension(saved.room.extension, state.entryY);
-  }
-  if (Number.isFinite(saved?.entryY)) state.entryY = clampEntry(saved.entryY, state.room);
-  for (const [id, size] of Object.entries(saved?.custom ?? {})) {
-    if (/^custom-[1-9][0-9]{0,5}$/.test(id) && validSize(size?.w) && validSize(size?.h)) {
-      state.custom[id] = { w: size.w, h: size.h };
-    }
-  }
-  for (const [id, pose] of Object.entries(saved?.poses ?? {})) {
-    if ((items.has(id) || Object.hasOwn(state.custom, id)) && Number.isFinite(pose?.x) && Number.isFinite(pose?.y)
-      && Math.abs(pose.x) < 100000 && Math.abs(pose.y) < 100000 && [0, 90, 180, 270].includes(pose.angle)) {
-      // Saved layouts include all furniture, even pieces the user never moved.
-      const savedVersion = saved.layoutVersion ?? 1;
-      const arrangement = previousArrangement[planNumber][id];
-      if (savedVersion < 7 && arrangement
-          && pose.x === arrangement.x && pose.y === arrangement.y
-          && pose.angle === arrangement.angle && Boolean(pose.flip) === arrangement.flip) continue;
-      if (planNumber === 1 && savedVersion < 6 && id === 'copier'
-          && pose.x === 3900 && pose.y === 6589 && pose.angle === 0 && !pose.flip) continue;
-      const previousDefault = planNumber === 1 && savedVersion < 3 && previousTopRowPositions[id]
-        ? undefined : previousDefaultPoses[planNumber][id];
-      if (savedVersion < 5 && previousDefault
-          && pose.x === previousDefault.x && pose.y === previousDefault.y
-          && pose.angle === previousDefault.angle && Boolean(pose.flip) === previousDefault.flip) continue;
-      const oldTopRowPosition = savedVersion === 1 && id === 'strategy-head'
-        ? [7750, 1900] : previousTopRowPositions[id];
-      const previous = id === 'meeting-table' && savedVersion < 4
-        ? [1200, 6950] : (savedVersion < 3 ? oldTopRowPosition : undefined);
-      if (planNumber === 1 && previous && pose.x === previous[0] && pose.y === previous[1]
-          && pose.angle === 0 && !pose.flip) continue;
-      state.poses[id] = { x: pose.x, y: pose.y, angle: pose.angle, flip: Boolean(pose.flip) };
-    }
-  }
-  for (const id of Object.keys(state.custom)) {
-    if (!state.poses[id]) delete state.custom[id];
-  }
-  const shapeIds = new Set([...items.keys(), ...Object.keys(state.custom), 'main-entry', ...fixed.map(part => part.id)]);
-  if (state.room) for (const id of Object.keys(roomNames)) shapeIds.add(id);
-  const validAnchor = a => Array.isArray(a?.point) && a.point.length === 2 && a.point.every(Number.isFinite)
-    && (!a.id || (shapeIds.has(a.id) && Number.isInteger(a.edge) && a.edge >= 0 && a.ratio >= 0 && a.ratio <= 1));
-  if (Array.isArray(saved?.measures)) state.measures = saved.measures.filter(m => validAnchor(m?.a) && validAnchor(m?.b)).slice(0, 50);
-} catch {
-  try { localStorage.getItem(saveKey); } catch { canStore = false; }
-}
-if (openBase) {
-  openingUrl.searchParams.delete('start');
-  try { history.replaceState(null, '', openingUrl); } catch { /* Local file previews may restrict URL changes. */ }
-}
-
-let selected = 'copier';
+let selected;
+let nameEditorItem;
+let nameEditorValue;
 let mode = 'select';
 let shownGap = null;
 let gapHidden = false;
 let pendingAnchor = null;
 let currentAnchor = null;
 let gesture = null;
-let view = [...PLAN.viewBox];
+let view;
 let plotted = new Map();
 let toastTimeout;
 let scheduled = 0;
-const undoStack = [];
-const redoStack = [];
+let undoStack;
+let redoStack;
+
+function readLayout() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(saveKey) ?? 'null');
+    if (state.room && Number.isFinite(saved?.room?.extension)) {
+      state.room.extension = clampExtension(saved.room.extension, state.entryY);
+    }
+    if (planNumber && Number.isFinite(saved?.entryY)) state.entryY = clampEntry(saved.entryY, state.room);
+    for (const [id, size] of Object.entries(saved?.custom ?? {})) {
+      if (!/^custom-[1-9][0-9]{0,5}$/.test(id)) continue;
+      const preset = deskPresets.get(size?.kind);
+      if (preset) state.custom[id] = { ...preset, kind: size.kind };
+      else if (validSize(size?.w) && validSize(size?.h)) state.custom[id] = { w: size.w, h: size.h };
+    }
+    for (const [id, pose] of Object.entries(saved?.poses ?? {})) {
+      if ((items.has(id) || Object.hasOwn(state.custom, id)) && Number.isFinite(pose?.x) && Number.isFinite(pose?.y)
+        && Math.abs(pose.x) < 100000 && Math.abs(pose.y) < 100000 && [0, 90, 180, 270].includes(pose.angle)) {
+        // Saved layouts include all furniture, even pieces the user never moved.
+        const savedVersion = saved.layoutVersion ?? 1;
+        const arrangement = previousArrangement[planNumber]?.[id];
+        if (savedVersion < 7 && arrangement
+            && pose.x === arrangement.x && pose.y === arrangement.y
+            && pose.angle === arrangement.angle && Boolean(pose.flip) === arrangement.flip) continue;
+        if (planNumber === 1 && savedVersion < 6 && id === 'copier'
+            && pose.x === 3900 && pose.y === 6589 && pose.angle === 0 && !pose.flip) continue;
+        const previousDefault = planNumber === 1 && savedVersion < 3 && previousTopRowPositions[id]
+          ? undefined : previousDefaultPoses[planNumber]?.[id];
+        if (savedVersion < 5 && previousDefault
+            && pose.x === previousDefault.x && pose.y === previousDefault.y
+            && pose.angle === previousDefault.angle && Boolean(pose.flip) === previousDefault.flip) continue;
+        const oldTopRowPosition = savedVersion === 1 && id === 'strategy-head'
+          ? [7750, 1900] : previousTopRowPositions[id];
+        const previous = id === 'meeting-table' && savedVersion < 4
+          ? [1200, 6950] : (savedVersion < 3 ? oldTopRowPosition : undefined);
+        if (planNumber === 1 && previous && pose.x === previous[0] && pose.y === previous[1]
+            && pose.angle === 0 && !pose.flip) continue;
+        state.poses[id] = { x: pose.x, y: pose.y, angle: pose.angle, flip: Boolean(pose.flip) };
+      }
+    }
+    for (const id of Object.keys(state.custom)) {
+      if (!state.poses[id]) delete state.custom[id];
+    }
+    const shapeIds = new Set([...items.keys(), ...Object.keys(state.custom), ...fixed.map(part => part.id)]);
+    if (planNumber) shapeIds.add('main-entry');
+    for (const [id, value] of Object.entries(saved?.names ?? {})) {
+      const name = cleanName(value);
+      if (name && Object.hasOwn(state.poses, id)) state.names[id] = name;
+    }
+    if (state.room) for (const id of Object.keys(roomNames)) shapeIds.add(id);
+    const validAnchor = a => Array.isArray(a?.point) && a.point.length === 2 && a.point.every(Number.isFinite)
+      && (!a.id || (shapeIds.has(a.id) && Number.isInteger(a.edge) && a.edge >= 0 && a.ratio >= 0 && a.ratio <= 1));
+    if (Array.isArray(saved?.measures)) state.measures = saved.measures.filter(m => validAnchor(m?.a) && validAnchor(m?.b)).slice(0, 50);
+  } catch {
+    try { localStorage.getItem(saveKey); } catch { canStore = false; }
+  }
+}
+
+function mountLayout() {
+  scene.replaceChildren(...baseScene.cloneNode(true).childNodes);
+  annotations = byId('annotation-layer');
+  if (planNumber !== 1) {
+    const backgroundId = planNumber === 2 ? 'plan-two-background' : 'floor-' + floorNumber + '-background';
+    const background = byId(backgroundId).content.querySelector('svg');
+    byId('plan-background').replaceChildren(...background.cloneNode(true).children);
+    byId('ceo-wall-handle').remove();
+    byId('plan-one-table-chair').remove();
+  }
+  if (!planNumber) {
+    byId('room-controls').remove();
+    byId('office-entry').remove();
+    byId('furniture-layer').replaceChildren();
+  }
+  byId('plan-switch').hidden = !planNumber;
+  for (const [floor, button] of floorButtons) button.setAttribute('aria-pressed', floor === floorNumber);
+  byId('plan-one-link').setAttribute('aria-pressed', planNumber === 1);
+  byId('plan-two-link').setAttribute('aria-pressed', planNumber === 2);
+  byId('editor-title').textContent = floorNumber + '층 배치 편집기';
+  byId('board-unit').textContent = '단위 mm';
+  scene.dataset.plan = planNumber;
+  scene.setAttribute('aria-label', 'KESS ' + planName + ' 배치');
+  scene.setAttribute('width', PLAN.viewBox[2] / 10);
+  scene.setAttribute('height', PLAN.viewBox[3] / 10);
+  items = new Map(PLAN.furniture.map(item => {
+    const node = byId(item.id);
+    const labels = Array.from(node.querySelectorAll('[data-label-box]'), element => {
+      const area = element.dataset.labelBox.split(' ').map(Number);
+      return { element, area, bounds: element.getBBox() };
+    });
+    return [item.id, { ...item, node, labels }];
+  }));
+  fixed = PLAN.fixed.filter(part => part.id !== 'main-entry')
+    .map(part => ({ ...part, ...Geometry.shape(part.outline, part.segments), isFloor: part.bounds === true }));
+}
+
+function switchLayout(floor, plan = 1, openBase = false) {
+  const next = floor === 2 ? plans[plan] : UPPER_FLOORS[floor];
+  if (gesture || next === PLAN) return;
+  if (PLAN) layoutSessions.set(saveKey, { state, canStore, undoStack, redoStack, view });
+
+  floorNumber = floor;
+  planNumber = floor === 2 ? plan : 0;
+  if (planNumber) lastSecondFloorPlan = planNumber;
+  planName = planNumber ? '2층 · ' + planNumber + '안' : floorNumber + '층';
+  PLAN = next;
+  saveKey = 'kess-floor-planner:' + PLAN.revision;
+
+  const saved = layoutSessions.get(saveKey);
+  state = saved?.state ?? fresh();
+  canStore = saved?.canStore ?? true;
+  undoStack = saved?.undoStack ?? [];
+  redoStack = saved?.redoStack ?? [];
+  view = saved?.view ?? [...PLAN.viewBox];
+  selected = planNumber ? 'copier' : null;
+  nameEditorItem = null;
+  shownGap = null;
+  gapHidden = false;
+  mountLayout();
+  if (!saved && !openBase) readLayout();
+  updateView();
+  setMode('select');
+  updateStatus();
+}
 
 function el(tag, cssClass, text) {
   const node = document.createElement(tag);
@@ -1050,6 +1226,68 @@ function validSize(value) {
   return Number.isInteger(value) && value >= 1 && value <= 100000;
 }
 
+function cleanName(value) {
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 48) : '';
+}
+
+function displayedName(item) {
+  return state.names[item.id] ?? item.name;
+}
+
+function updateFurnitureName(item) {
+  const name = state.names[item.id];
+  if (name === item.renderedName) return;
+  item.renderedName = name;
+  item.node.setAttribute('aria-label', displayedName(item));
+  if (!item.originalLabels) item.originalLabels = item.labels;
+  item.nameLabel?.remove();
+  const first = item.originalLabels[0];
+  if (!first) return;
+  if (!name) {
+    first.element.removeAttribute('display');
+    item.labels = item.originalLabels;
+    return;
+  }
+  first.element.setAttribute('display', 'none');
+  const [x, y, width, height] = first.area;
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  const color = first.element.querySelector('text')?.getAttribute('fill') ?? first.element.getAttribute('fill') ?? '#192b42';
+  const words = name.split(' ');
+  const midpoint = Math.ceil(name.length / 2);
+  const space = words.length > 1 ? name.lastIndexOf(' ', midpoint) : -1;
+  const cut = space > 0 && space > midpoint / 2 ? space : midpoint;
+  const lines = name.length > 9 ? [name.slice(0, cut).trim(), name.slice(cut).trim()] : [name];
+  const size = Math.min(190, height / (lines.length + 1));
+  const label = svgEl('text', { x: centerX, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    'font-size': size, 'font-weight': 700, fill: color });
+  for (const [i, line] of lines.entries()) {
+    label.append(svgEl('tspan', { x: centerX, y: centerY + (i - (lines.length - 1) / 2) * size * 1.18 }, line));
+  }
+  item.node.append(label);
+  item.nameLabel = label;
+  const bounds = label.getBBox();
+  item.labels = [{ element: label, area: first.area, bounds }, ...item.originalLabels.slice(1)];
+}
+
+function officeDesk(w, h, right) {
+  const mirror = x => right ? w - x : x;
+  const points = [[0, 0], [w, 0], [w, 700], [850, 700]];
+  for (let i = 1; i <= 20; i++) {
+    const t = i / 20;
+    const r = 1 - t;
+    points.push([850 * r * r + 700 * 2 * r * t + 700 * t * t, 700 + 150 * t * t]);
+  }
+  points.push([700, h], [0, h]);
+  return {
+    outline: points.map(([x, y]) => [mirror(x), Math.round(y * 1000) / 1000]),
+    path: 'M' + mirror(0) + ' 0 H' + mirror(w) + ' V700 H' + mirror(850)
+      + ' Q' + mirror(700) + ' 700 ' + mirror(700) + ' 850 V' + h + ' H' + mirror(0) + ' Z',
+    labelArea: [right ? w - 660 : 40, 80, 620, h - 160],
+    chair: [mirror(w - 470), h - 120],
+  };
+}
+
 function syncCustomFurniture() {
   for (const [id, item] of items) {
     if (item.custom && !Object.hasOwn(state.custom, id)) {
@@ -1058,24 +1296,36 @@ function syncCustomFurniture() {
       if (selected === id) selected = null;
     }
   }
-  for (const [id, { w, h }] of Object.entries(state.custom)) {
+  for (const [id, { w, h, kind }] of Object.entries(state.custom)) {
     if (items.has(id)) continue;
-    const name = `새 가구 ${id.slice(7)}`;
+    const desk = deskPresets.has(kind) ? officeDesk(w, h, kind.endsWith('-right')) : null;
+    const name = desk ? '사무용 책상' : '새 가구 ' + id.slice(7);
     const color = '#285da4';
     const center = [w / 2, h / 2];
-    const outline = rectangle(w, h);
+    const outline = desk?.outline ?? rectangle(w, h);
     const node = svgEl('g', { id, class: 'furniture', 'data-item': id, role: 'button',
       tabindex: 0, 'aria-label': name, 'aria-pressed': false });
-    node.append(svgEl('rect', { width: w, height: h, fill: '#e8f0ff', stroke: color,
-      'stroke-width': Math.min(23, w / 4, h / 4) }));
-    const label = svgEl('text', { x: center[0], y: center[1], 'text-anchor': 'middle',
-      'dominant-baseline': 'central', 'font-size': Math.min(155, w / 5, h / 2), fill: color }, name);
-    node.append(label, svgEl('polygon', { class: 'object-outline', 'aria-hidden': true,
+    const appearance = { fill: '#e8f0ff', stroke: color, 'stroke-width': Math.min(23, w / 4, h / 4) };
+    node.append(desk ? svgEl('path', { d: desk.path, ...appearance }) : svgEl('rect', { width: w, height: h, ...appearance }));
+    if (desk) node.append(svgEl('circle', { cx: desk.chair[0], cy: desk.chair[1], r: 250, fill: 'none',
+      stroke: color, 'stroke-width': 18, 'stroke-dasharray': '45 32', 'pointer-events': 'none' }));
+    const area = desk?.labelArea ?? [0, 0, w, h];
+    const label = svgEl('text', { x: area[0] + area[2] / 2, y: area[1] + area[3] / 2, 'text-anchor': 'middle',
+      'dominant-baseline': 'central', 'font-size': Math.min(155, area[2] / 5.5, h / 2), fill: color }, name);
+    node.append(label, svgEl('polygon', { class: 'object-outline', 'aria-hidden': 'true',
       points: outline.map(point => point.join(',')).join(' ') }));
     byId('furniture-layer').append(node);
     items.set(id, { id, name, color, center, outline, w, h, node, custom: true,
-      labels: [{ element: label, area: [0, 0, w, h], bounds: label.getBBox() }] });
+      labels: [{ element: label, area, bounds: label.getBBox() }] });
   }
+}
+
+function furniturePlacement(start, end, moved) {
+  const preset = deskPresets.get(byId('create-kind').value);
+  if (preset) {
+    return { ...preset, x: Math.round(end[0] - preset.w / 2), y: Math.round(end[1] - preset.h / 2) };
+  }
+  return moved ? creationBox(start, end) : null;
 }
 
 function creationBox(a, b) {
@@ -1104,8 +1354,10 @@ function drawCreationPreview(box) {
 function createFurniture(point, box) {
   const width = byId('create-width');
   const height = byId('create-height');
-  const w = box?.w ?? width.valueAsNumber;
-  const h = box?.h ?? height.valueAsNumber;
+  const kind = byId('create-kind').value;
+  const preset = deskPresets.get(kind);
+  const w = preset?.w ?? box?.w ?? width.valueAsNumber;
+  const h = preset?.h ?? box?.h ?? height.valueAsNumber;
   if (!validSize(w) || !validSize(h)) {
     (validSize(w) ? height : width).reportValidity();
     return;
@@ -1118,7 +1370,7 @@ function createFurniture(point, box) {
   width.value = w;
   height.value = h;
   edit(() => {
-    state.custom[id] = { w, h };
+    state.custom[id] = preset ? { w, h, kind } : { w, h };
     state.poses[id] = { x, y, angle: 0, flip: false };
     selected = id;
     shownGap = null;
@@ -1136,6 +1388,7 @@ function deleteCustomFurniture() {
     state.measures = state.measures.map(({ a, b }) => ({ a: detach(a), b: detach(b) }));
     delete state.custom[id];
     delete state.poses[id];
+    delete state.names[id];
     selected = null;
   });
   byId('select-mode').focus();
@@ -1144,7 +1397,7 @@ function deleteCustomFurniture() {
 function updateShapes() {
   syncCustomFurniture();
   plotted = new Map(fixed.map(part => [part.id, part]));
-  plotted.set('main-entry', updateEntry());
+  if (planNumber) plotted.set('main-entry', updateEntry());
   if (state.room) {
     for (const [id, shape] of Object.entries(updateCeoRoom())) {
       plotted.set(id, { id, name: roomNames[id], ...shape });
@@ -1152,9 +1405,10 @@ function updateShapes() {
   }
   for (const item of items.values()) {
     const pose = state.poses[item.id];
+    updateFurnitureName(item);
     updatePose(item, pose);
     const outline = Geometry.place(item.outline, item.center, pose);
-    plotted.set(item.id, { id: item.id, name: item.name, ...Geometry.shape(outline) });
+    plotted.set(item.id, { id: item.id, name: displayedName(item), ...Geometry.shape(outline) });
   }
 }
 
@@ -1227,13 +1481,22 @@ function drawSelection(gaps, collisionNames) {
   empty.hidden = Boolean(selected);
   swatch.hidden = !selected;
   const item = items.get(selected);
-  byId('mobile-selection').textContent = item?.name ?? '가구를 선택하세요';
+  byId('mobile-selection').textContent = item ? displayedName(item) : '가구를 선택하세요';
   byId('rotate').disabled = byId('flip').disabled = !item || mode !== 'select';
   byId('delete-custom').hidden = !item?.custom || mode !== 'select';
-  if (!selected) return;
+  if (!selected) {
+    nameEditorItem = null;
+    return;
+  }
+  const name = state.names[selected] ?? '';
+  if (nameEditorItem !== selected || nameEditorValue !== name) {
+    byId('furniture-name').value = name || item.name;
+    nameEditorItem = selected;
+    nameEditorValue = name;
+  }
   const pose = state.poses[selected];
   const turned = pose.angle % 180 !== 0;
-  byId('selected-name').textContent = item.name;
+  byId('selected-name').textContent = displayedName(item);
   byId('selected-size').textContent = `${format.format(turned ? item.h : item.w)} × ${mm(turned ? item.w : item.h)} · ${pose.angle}°`;
   swatch.style.setProperty('--item-color', item.color);
   const warning = byId('collision-status');
@@ -1293,9 +1556,11 @@ function draw() {
   byId('board-hint').textContent = mode === 'measure'
     ? (pendingAnchor ? '두 번째 지점을 선택하세요' : '거리의 첫 지점을 선택하세요 · 가까운 가구 모서리에 맞춰집니다')
     : mode === 'erase' ? '지울 측정선이나 숫자를 누르세요'
-      : mode === 'create' ? '사각형을 끌어 그리거나, 치수를 입력하고 놓을 자리를 누르세요'
+      : mode === 'create' ? (deskPresets.has(byId('create-kind').value) ? '책상을 놓을 위치를 누르세요'
+        : '사각형을 끌어 그리거나, 치수를 입력하고 놓을 자리를 누르세요')
         : state.room ? '가구를 끌어 이동 · 대표이사실 벽과 왼쪽 출입문은 손잡이를 끌어 조절'
-        : '가구를 끌어 이동 · 왼쪽 출입문은 손잡이를 끌어 조절';
+        : planNumber ? '가구를 끌어 이동 · 왼쪽 출입문은 손잡이를 끌어 조절'
+          : '가구를 생성하거나 끌어서 이동하세요';
   updateHistory();
 }
 
@@ -1450,7 +1715,7 @@ scene.addEventListener('pointermove', event => {
   if (!gesture.moved && motion * Math.abs(scene.getScreenCTM().a) < 3) return;
   gesture.moved = true;
   if (gesture.create) {
-    drawCreationPreview(creationBox(gesture.point, point));
+    drawCreationPreview(furniturePlacement(gesture.point, point, true));
     return;
   }
   const step = event.altKey ? 1 : 10;
@@ -1482,7 +1747,7 @@ function endGesture(event, cancelled = false) {
     if (!cancelled) {
       const point = screenPoint(event.clientX, event.clientY, active.inverse);
       const distance = Geometry.distance(active.point, point) * Math.abs(scene.getScreenCTM().a);
-      const box = active.moved || distance >= 3 ? creationBox(active.point, point) : null;
+      const box = furniturePlacement(active.point, point, active.moved || distance >= 3);
       createFurniture(point, box);
     }
     return;
@@ -1508,7 +1773,7 @@ function flipSelected() {
 }
 
 document.addEventListener('keydown', event => {
-  if (event.target.closest?.('input')) return;
+  if (event.target.closest?.('input, select')) return;
   const key = event.key.toLowerCase();
   if ((event.ctrlKey || event.metaKey) && (key === 'z' || key === 'y')) {
     event.preventDefault();
@@ -1559,6 +1824,24 @@ byId('measure-mode').onclick = () => setMode('measure');
 byId('create-mode').onclick = () => setMode(mode === 'create' ? 'select' : 'create');
 byId('cancel-create').onclick = () => { setMode('select'); byId('create-mode').focus(); };
 byId('delete-custom').onclick = deleteCustomFurniture;
+byId('create-kind').onchange = () => {
+  const preset = deskPresets.has(byId('create-kind').value);
+  byId('create-width-field').hidden = byId('create-height-field').hidden = preset;
+  drawCreationPreview(null);
+  draw();
+};
+byId('rename-form').onsubmit = event => {
+  event.preventDefault();
+  if (gesture || !selected) return;
+  const input = byId('furniture-name');
+  const item = items.get(selected);
+  const name = cleanName(input.value);
+  edit(() => {
+    if (name && name !== item.name) state.names[selected] = name;
+    else delete state.names[selected];
+  });
+  input.value = displayedName(item);
+};
 byId('erase-mode').onclick = () => setMode('erase');
 byId('undo').onclick = () => travel(undoStack, redoStack);
 byId('redo').onclick = () => travel(redoStack, undoStack);
@@ -1645,7 +1928,7 @@ async function exportPng() {
 
     const link = el('a');
     link.href = URL.createObjectURL(png);
-    link.download = `KESS-2F-layout-plan-${planNumber}.png`;
+    link.download = planNumber ? `KESS-2F-layout-plan-${planNumber}.png` : `KESS-${floorNumber}F-layout.png`;
     document.body.append(link);
     link.click();
     link.remove();
@@ -1672,7 +1955,8 @@ const copyLink = byId('copy-link');
 copyLink.hidden = !['http:', 'https:'].includes(location.protocol);
 copyLink.onclick = async () => {
   const link = new URL(location.pathname, location.origin);
-  if (planNumber === 2) link.searchParams.set('plan', '2');
+  if (floorNumber !== 2) link.searchParams.set('floor', floorNumber);
+  else if (planNumber === 2) link.searchParams.set('plan', '2');
   link.searchParams.set('start', 'base');
   try {
     await navigator.clipboard.writeText(link.href);
@@ -1682,8 +1966,19 @@ copyLink.onclick = async () => {
   }
 };
 
-updateStatus();
-draw();
+for (const [floor, button] of floorButtons) button.onclick = () => switchLayout(floor, lastSecondFloorPlan);
+byId('plan-one-link').onclick = () => switchLayout(2, 1);
+byId('plan-two-link').onclick = () => switchLayout(2, 2);
+
+const requestedFloor = Number(openingUrl.searchParams.get('floor'));
+const initialFloor = Object.hasOwn(UPPER_FLOORS, requestedFloor) ? requestedFloor : 2;
+const initialPlan = openingUrl.searchParams.get('plan') === '2' ? 2 : 1;
+const openBase = openingUrl.searchParams.get('start') === 'base';
+if (openBase) {
+  openingUrl.searchParams.delete('start');
+  try { history.replaceState(null, '', openingUrl); } catch { /* URL history may be unavailable in a preview. */ }
+}
+switchLayout(initialFloor, initialPlan, openBase);
 </script>
 </body>
 </html>
