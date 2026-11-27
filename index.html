@@ -486,6 +486,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
           <label>가구 종류
             <select id="create-kind">
               <option value="rectangle">사각형</option>
+              <option value="circle">원형</option>
               <option value="desk-1600-left">1,600 × 1,200 · 좌향</option>
               <option value="desk-1600-right">1,600 × 1,200 · 우향</option>
               <option value="desk-1400-left">1,400 × 1,200 · 좌향</option>
@@ -494,6 +495,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
           </label>
           <label id="create-width-field">가로 (mm) <input id="create-width" type="number" min="1" max="100000" step="1" value="1200" inputmode="numeric"></label>
           <label id="create-height-field">세로 (mm) <input id="create-height" type="number" min="1" max="100000" step="1" value="700" inputmode="numeric"></label>
+          <label id="create-diameter-field" hidden>지름 (mm) <input id="create-diameter" type="number" min="1" max="100000" step="1" value="1000" inputmode="numeric" required></label>
           <button id="cancel-create" type="button">취소</button>
         </div>
         <div class="zoom" aria-label="확대 도구">
@@ -878,6 +880,7 @@ function restoreLayout(saved) {
     if (!/^custom-[1-9][0-9]{0,5}$/.test(id)) continue;
     const preset = deskPresets.get(size?.kind);
     if (preset) layout.custom[id] = { ...preset, kind: size.kind };
+    else if (size?.kind === 'circle' && validSize(size.w)) layout.custom[id] = { w: size.w, h: size.w, kind: 'circle' };
     else if (validSize(size?.w) && validSize(size?.h)) layout.custom[id] = { w: size.w, h: size.h };
   }
   for (const [id, pose] of Object.entries(saved?.poses ?? {})) {
@@ -1371,17 +1374,24 @@ function syncCustomFurniture() {
   for (const [id, { w, h, kind }] of Object.entries(state.custom)) {
     if (items.has(id)) continue;
     const desk = deskPresets.has(kind) ? officeDesk(w, h, kind.endsWith('-right')) : null;
-    const name = desk ? '사무용 책상' : '새 가구 ' + id.slice(7);
+    const isCircle = kind === 'circle';
+    const name = desk ? '사무용 책상' : (isCircle ? '원형 가구 ' : '새 가구 ') + id.slice(7);
     const color = '#285da4';
     const center = [w / 2, h / 2];
-    const outline = desk?.outline ?? rectangle(w, h);
+    const radius = w / 2;
+    const outline = isCircle ? Array.from({ length: 64 }, (_, i) => {
+      const angle = i * Math.PI / 32;
+      return [radius + radius * Math.cos(angle), radius + radius * Math.sin(angle)];
+    }) : desk?.outline ?? rectangle(w, h);
     const node = svgEl('g', { id, class: 'furniture', 'data-item': id, role: 'button',
       tabindex: 0, 'aria-label': name, 'aria-pressed': false });
     const appearance = { fill: '#e8f0ff', stroke: color, 'stroke-width': Math.min(23, w / 4, h / 4) };
-    node.append(desk ? svgEl('path', { d: desk.path, ...appearance }) : svgEl('rect', { width: w, height: h, ...appearance }));
+    if (isCircle) node.append(svgEl('circle', { cx: radius, cy: radius, r: radius, ...appearance }));
+    else if (desk) node.append(svgEl('path', { d: desk.path, ...appearance }));
+    else node.append(svgEl('rect', { width: w, height: h, ...appearance }));
     if (desk) node.append(svgEl('circle', { cx: desk.chair[0], cy: desk.chair[1], r: 250, fill: 'none',
       stroke: color, 'stroke-width': 18, 'stroke-dasharray': '45 32', 'pointer-events': 'none' }));
-    const inset = Math.min(40, w / 10, h / 10);
+    const inset = isCircle ? w * 0.16 : Math.min(40, w / 10, h / 10);
     const nameArea = desk?.labelArea ?? [inset, inset, w - 2 * inset, h - 2 * inset];
     node.append(svgEl('polygon', { class: 'object-outline', 'aria-hidden': 'true',
       points: outline.map(point => point.join(',')).join(' ') }));
@@ -1392,11 +1402,21 @@ function syncCustomFurniture() {
 }
 
 function furniturePlacement(start, end, moved) {
-  const preset = deskPresets.get(byId('create-kind').value);
+  const kind = byId('create-kind').value;
+  const preset = deskPresets.get(kind);
   if (preset) {
     return { ...preset, x: Math.round(end[0] - preset.w / 2), y: Math.round(end[1] - preset.h / 2) };
   }
-  return moved ? creationBox(start, end) : null;
+  if (!moved) return null;
+  const box = creationBox(start, end);
+  if (kind !== 'circle') return box;
+  const diameter = Math.max(box.w, box.h);
+  const [x, y] = start.map(value => Math.round(value / 10) * 10);
+  return {
+    kind, w: diameter, h: diameter,
+    x: end[0] < start[0] ? x - diameter : x,
+    y: end[1] < start[1] ? y - diameter : y,
+  };
 }
 
 function creationBox(a, b) {
@@ -1413,12 +1433,14 @@ function drawCreationPreview(box) {
   preview.replaceChildren();
   if (!box) return;
   const { x, y, w, h } = box;
+  const appearance = { fill: '#bdd8fc', 'fill-opacity': '.55',
+    stroke: '#285da4', 'stroke-width': 24, 'stroke-dasharray': '42 24' };
   preview.append(
-    svgEl('rect', { x, y, width: w, height: h, fill: '#bdd8fc', 'fill-opacity': '.55',
-      stroke: '#285da4', 'stroke-width': 24, 'stroke-dasharray': '42 24' }),
+    box.kind === 'circle' ? svgEl('circle', { cx: x + w / 2, cy: y + h / 2, r: w / 2, ...appearance })
+      : svgEl('rect', { x, y, width: w, height: h, ...appearance }),
     svgEl('text', { x: x + w / 2, y: y - 70, 'text-anchor': 'middle', 'font-size': 175,
       fill: '#204e8b', stroke: '#fff', 'stroke-width': 36, 'paint-order': 'stroke fill' },
-      `${format.format(w)} × ${mm(h)}`),
+      box.kind === 'circle' ? `지름 ${mm(w)}` : `${format.format(w)} × ${mm(h)}`),
   );
 }
 
@@ -1426,11 +1448,13 @@ function createFurniture(point, box) {
   const width = byId('create-width');
   const height = byId('create-height');
   const kind = byId('create-kind').value;
+  const isCircle = kind === 'circle';
+  const diameter = byId('create-diameter');
   const preset = deskPresets.get(kind);
-  const w = preset?.w ?? box?.w ?? width.valueAsNumber;
-  const h = preset?.h ?? box?.h ?? height.valueAsNumber;
+  const w = preset?.w ?? box?.w ?? (isCircle ? diameter : width).valueAsNumber;
+  const h = isCircle ? w : preset?.h ?? box?.h ?? height.valueAsNumber;
   if (!validSize(w) || !validSize(h)) {
-    (validSize(w) ? height : width).reportValidity();
+    (isCircle ? diameter : validSize(w) ? height : width).reportValidity();
     return;
   }
   const x = box?.x ?? Math.round(point[0] - w / 2);
@@ -1438,10 +1462,14 @@ function createFurniture(point, box) {
   let number = 1;
   while (Object.hasOwn(state.custom, `custom-${number}`)) number++;
   const id = `custom-${number}`;
-  width.value = w;
-  height.value = h;
+  if (isCircle) {
+    diameter.value = w;
+  } else {
+    width.value = w;
+    height.value = h;
+  }
   edit(() => {
-    state.custom[id] = preset ? { w, h, kind } : { w, h };
+    state.custom[id] = isCircle || preset ? { w, h, kind } : { w, h };
     state.poses[id] = { x, y, angle: 0, flip: false };
     selected = id;
     shownGap = null;
@@ -1570,7 +1598,8 @@ function drawSelection(gaps, collisionNames) {
   const pose = state.poses[selected];
   const turned = pose.angle % 180 !== 0;
   byId('selected-name').textContent = displayedName(item);
-  byId('selected-size').textContent = `${format.format(turned ? item.h : item.w)} × ${mm(turned ? item.w : item.h)} · ${pose.angle}°`;
+  byId('selected-size').textContent = item.kind === 'circle' ? `지름 ${mm(item.w)}`
+    : `${format.format(turned ? item.h : item.w)} × ${mm(turned ? item.w : item.h)} · ${pose.angle}°`;
   swatch.style.setProperty('--item-color', item.color);
   const warning = byId('collision-status');
   warning.hidden = !collisionNames.length;
@@ -1632,7 +1661,8 @@ function draw() {
     ? (pendingAnchor ? '두 번째 지점을 선택하세요' : '거리의 첫 지점을 선택하세요 · 가까운 가구 모서리에 맞춰집니다')
     : mode === 'erase' ? '지울 측정선이나 숫자를 누르세요'
       : mode === 'create' ? (deskPresets.has(byId('create-kind').value) ? '책상을 놓을 위치를 누르세요'
-        : '사각형을 끌어 그리거나, 치수를 입력하고 놓을 자리를 누르세요')
+        : byId('create-kind').value === 'circle' ? '원을 끌어 그리거나, 지름을 입력하고 놓을 자리를 누르세요'
+          : '사각형을 끌어 그리거나, 치수를 입력하고 놓을 자리를 누르세요')
         : grouped.size ? '선택한 가구 중 하나를 끌어 함께 이동하세요'
           : '가구를 끌어 이동 · 빈 곳에서 드래그해 여러 가구 선택';
   updateHistory();
@@ -2016,8 +2046,11 @@ byId('create-mode').onclick = () => setMode(mode === 'create' ? 'select' : 'crea
 byId('cancel-create').onclick = () => { setMode('select'); byId('create-mode').focus(); };
 byId('delete-custom').onclick = deleteCustomFurniture;
 byId('create-kind').onchange = () => {
-  const preset = deskPresets.has(byId('create-kind').value);
-  byId('create-width-field').hidden = byId('create-height-field').hidden = preset;
+  const kind = byId('create-kind').value;
+  const useWidthAndHeight = kind === 'rectangle';
+  byId('create-width-field').hidden = !useWidthAndHeight;
+  byId('create-height-field').hidden = !useWidthAndHeight;
+  byId('create-diameter-field').hidden = kind !== 'circle';
   drawCreationPreview(null);
   draw();
 };
