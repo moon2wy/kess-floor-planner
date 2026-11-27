@@ -1256,9 +1256,10 @@ function balancedNameLines(characters, count) {
 
 function fitFurnitureName(label, name, width, height) {
   const characters = Array.from(name);
-  const maxSize = 300;
+  // Six Hangul characters at this size fit the 1,400 mm desk's 1,310 mm name area.
+  const referenceSize = 210;
   const lineHeight = 1.14;
-  label.setAttribute('font-size', maxSize);
+  label.setAttribute('font-size', referenceSize);
   let best;
   for (let count = 1; count <= Math.min(4, characters.length); count++) {
     const lines = balancedNameLines(characters, count);
@@ -1267,10 +1268,10 @@ function fitFurnitureName(label, name, width, height) {
       label.textContent = line;
       maxLength = Math.max(maxLength, label.getComputedTextLength());
     }
-    const size = Math.min(maxSize, maxSize * width / Math.max(1, maxLength),
+    const size = Math.min(referenceSize, referenceSize * width / Math.max(1, maxLength),
       height / ((lines.length - 1) * lineHeight + 1.2));
-    if (!best || size > best.size * 1.05) best = { lines, size };
-    if (best.size === maxSize) break;
+    if (!best || size === referenceSize || size > best.size * 1.05) best = { lines, size };
+    if (size === referenceSize) break;
   }
   label.textContent = '';
   label.setAttribute('font-size', best.size);
