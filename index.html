@@ -21,6 +21,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+html { scrollbar-gutter: stable; }
 body { margin: 0; }
 [hidden] { display: none !important; }
 button, output { font: inherit; }
@@ -117,14 +118,16 @@ h1 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 750; letter-sp
 .history #undo, .history #redo { min-width: 38px; padding: 1px 7px; font-size: 21px; line-height: 1; }
 .viewport {
   position: relative;
-  height: clamp(490px, calc(100dvh - 213px), 1050px);
+  height: clamp(490px, calc(100svh - 213px), 1050px);
   overflow: hidden;
+  overflow: clip;
+  touch-action: none;
   background-color: #e9eff5;
   background-image: radial-gradient(#b7c8d8 1px, transparent 1px);
   background-size: 15px 15px;
   overscroll-behavior: contain;
 }
-#scene { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; }
+#scene { display: block; width: 100%; height: 100%; touch-action: none; -webkit-user-select: none; user-select: none; }
 #scene .furniture { cursor: grab; }
 #scene .furniture:focus { outline: none; }
 #scene .furniture:focus-visible > .object-outline { stroke: #365dcb; stroke-width: 30; stroke-dasharray: 45 24; }
@@ -141,13 +144,28 @@ h1 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 750; letter-sp
 .room-handle { --handle-color: #285da4; cursor: ns-resize; }
 #office-entry-handle { --handle-color: #a55431; }
 .viewport[data-mode="create"] #scene, .viewport[data-mode="create"] #scene * { cursor: crosshair; }
-.create-form { display: flex; align-items: end; gap: 7px 12px; flex-wrap: wrap; padding: 8px 12px; background: #f5f8fc; border-bottom: 1px solid var(--line); }
+.create-form {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  display: flex;
+  align-items: end;
+  gap: 7px 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #f5f8fc;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: 0 3px 12px #203d571c;
+}
 .create-form label { display: grid; gap: 3px; font-size: 13px; color: var(--muted); }
 .create-form input { width: 86px; min-height: 36px; padding: 5px 8px; border: 1px solid #b7c8da; border-radius: 6px; background: white; color: var(--ink); font: inherit; }
 #delete-custom { color: var(--danger); }
 .room-handle:focus { outline: none; }
 .room-handle:focus-visible .room-grip circle { stroke-width: 45; }
-.room-drag-hit { fill: none; stroke: transparent; stroke-width: 24; stroke-linecap: round; vector-effect: non-scaling-stroke; pointer-events: stroke; }
+.room-drag-hit { fill: transparent; stroke: transparent; stroke-width: 24; vector-effect: non-scaling-stroke; pointer-events: all; }
 .room-grip { pointer-events: none; }
 .room-grip circle { fill: white; stroke: var(--handle-color); stroke-width: 24; }
 .room-grip path { fill: none; stroke: var(--handle-color); stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; }
@@ -196,7 +214,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   .brand { width: 51px; height: 40px; font-size: 14px; }
   .file-actions { gap: 5px; }
   .file-actions button { font-size: 14px; padding-inline: 9px; min-height: 36px; }
-  .viewport { height: min(65dvh, 660px); min-height: 385px; }
+  .viewport { height: min(65svh, 660px); min-height: 385px; }
   .toolbar { padding-inline: 7px; }
   .plan-switch a { min-width: 44px; min-height: 44px; }
   #mobile-object-actions { display: block; position: sticky; top: 0; z-index: 2; background: #f5f8fc; border-bottom: 1px solid var(--line); }
@@ -250,11 +268,6 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
           <button id="clear-measurements" type="button" hidden>측정선 모두 지우기</button>
           <button id="reset" type="button">기본 배치로</button>
         </div>
-      </div>
-      <div id="create-form" class="create-form" hidden>
-        <label>가로 (mm) <input id="create-width" type="number" min="1" max="100000" step="1" value="1200" inputmode="numeric"></label>
-        <label>세로 (mm) <input id="create-height" type="number" min="1" max="100000" step="1" value="700" inputmode="numeric"></label>
-        <button id="cancel-create" type="button">취소</button>
       </div>
       <div id="mobile-object-actions" aria-label="선택한 가구 편집"></div>
       <div id="viewport" class="viewport" data-mode="select">
@@ -468,17 +481,22 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   <g id="room-controls">
     <g id="ceo-wall-handle" class="room-handle" data-room-handle="wall" role="slider" aria-label="대표이사실 확장" aria-orientation="vertical" tabindex="0">
       <title>대표이사실 윗벽을 위아래로 끌어 확장 조절</title>
-      <path class="room-drag-hit" />
+      <circle class="room-drag-hit" r="155" />
       <g class="room-grip"><circle r="155" /><path d="M0 -100 V100 M-44 -54 L0 -100 L44 -54 M-44 54 L0 100 L44 54" /></g>
     </g>
     <g id="office-entry-handle" class="room-handle" data-room-handle="entry" role="slider" aria-label="사무실 출입문 위치" aria-orientation="vertical" tabindex="0">
       <title>왼쪽 사무실 출입문을 위아래로 끌어 이동</title>
-      <path class="room-drag-hit" />
+      <circle class="room-drag-hit" r="155" />
       <g class="room-grip"><circle r="155" /><path d="M0 -100 V100 M-44 -54 L0 -100 L44 -54 M-44 54 L0 100 L44 54" /></g>
     </g>
   </g>
   <g id="creation-preview" pointer-events="none" />
   <g id="annotation-layer" pointer-events="none" /></svg>
+        <div id="create-form" class="create-form" hidden>
+          <label>가로 (mm) <input id="create-width" type="number" min="1" max="100000" step="1" value="1200" inputmode="numeric"></label>
+          <label>세로 (mm) <input id="create-height" type="number" min="1" max="100000" step="1" value="700" inputmode="numeric"></label>
+          <button id="cancel-create" type="button">취소</button>
+        </div>
         <div class="zoom" aria-label="확대 도구">
           <button id="zoom-out" aria-label="축소" type="button">−</button>
           <output id="zoom-level">100%</output>
@@ -979,10 +997,9 @@ function segmentsPath(segments) {
   return segments.map(([a, b]) => `M${a.join(' ')} L${b.join(' ')}`).join(' ');
 }
 
-function drawRoomGrip(id, segments, centre, value, max, description) {
+function drawRoomGrip(id, centre, value, max, description) {
   const handle = byId(id);
-  handle.querySelector('.room-drag-hit').setAttribute('d', segmentsPath(segments));
-  handle.querySelector('.room-grip').setAttribute('transform', `translate(${centre.join(' ')})`);
+  handle.setAttribute('transform', `translate(${centre.join(' ')})`);
   handle.setAttribute('aria-valuemin', 0);
   handle.setAttribute('aria-valuemax', max);
   handle.setAttribute('aria-valuenow', value);
@@ -1015,7 +1032,7 @@ function updateCeoRoom() {
   dimension.textContent = extension ? `${format.format(extension)} 확장` : '확장 없음';
   byId('board-unit').textContent = `확장 ${mm(extension)}`;
 
-  drawRoomGrip('ceo-wall-handle', topEdges, [doorLeft / 2, top],
+  drawRoomGrip('ceo-wall-handle', [doorLeft / 2, top],
     extension, originalTop - Math.max(minTop, state.entryY + entry.height), mm(extension));
   return shapes;
 }
@@ -1024,7 +1041,7 @@ function updateEntry() {
   const { width, height, minY } = entry;
   const y = state.entryY;
   byId('office-entry').setAttribute('transform', `translate(0 ${y})`);
-  drawRoomGrip('office-entry-handle', [[[width, y], [width, y + height]]], [width, y + height / 2],
+  drawRoomGrip('office-entry-handle', [width, y + height / 2],
     y - minY, entryLimit(state.room) - minY, `왼쪽 위에서 ${mm(y)}`);
   return { id: 'main-entry', name: '사무실 출입구', ...Geometry.shape(rectangle(width, height, 0, y)) };
 }
@@ -1277,8 +1294,8 @@ function draw() {
     ? (pendingAnchor ? '두 번째 지점을 선택하세요' : '거리의 첫 지점을 선택하세요 · 가까운 가구 모서리에 맞춰집니다')
     : mode === 'erase' ? '지울 측정선이나 숫자를 누르세요'
       : mode === 'create' ? '사각형을 끌어 그리거나, 치수를 입력하고 놓을 자리를 누르세요'
-        : state.room ? '가구를 끌어 이동 · 대표이사실 윗벽과 사무실 출입문은 위아래로 조절'
-        : '가구를 끌어 이동 · 왼쪽 출입문은 위아래로 조절';
+        : state.room ? '가구를 끌어 이동 · 대표이사실 벽과 왼쪽 출입문은 손잡이를 끌어 조절'
+        : '가구를 끌어 이동 · 왼쪽 출입문은 손잡이를 끌어 조절';
   updateHistory();
 }
 
@@ -1352,14 +1369,17 @@ function updateView() {
 }
 
 function zoom(factor, focus = [view[0] + view[2] / 2, view[1] + view[3] / 2]) {
+  if (gesture) return;
   const width = Math.max(PLAN.viewBox[2] / 5, Math.min(PLAN.viewBox[2] * 1.25, view[2] / factor));
   const ratio = width / view[2];
   view = [focus[0] + (view[0] - focus[0]) * ratio, focus[1] + (view[1] - focus[1]) * ratio, width, view[3] * ratio];
   updateView();
 }
 
+scene.addEventListener('dragstart', event => event.preventDefault());
 scene.addEventListener('wheel', event => {
   event.preventDefault();
+  if (gesture || event.buttons || event.deltaY === 0) return;
   zoom(event.deltaY < 0 ? 1.13 : 1 / 1.13, screenPoint(event.clientX, event.clientY));
 }, { passive: false });
 
@@ -1389,7 +1409,9 @@ scene.addEventListener('pointerdown', event => {
   }
   const hit = event.target.closest('[data-item], [data-room-handle]');
   if (!hit) {
-    selectItem(null);
+    gesture = { pointer: event.pointerId, background: true, point: [event.clientX, event.clientY], moved: false };
+    event.preventDefault();
+    scene.setPointerCapture(event.pointerId);
     return;
   }
   const id = hit.getAttribute('data-item');
@@ -1418,6 +1440,10 @@ scene.addEventListener('pointermove', event => {
     return;
   }
   if (gesture.pointer !== event.pointerId) return;
+  if (gesture.background) {
+    if (Geometry.distance(gesture.point, [event.clientX, event.clientY]) >= 3) gesture.moved = true;
+    return;
+  }
   const point = screenPoint(event.clientX, event.clientY, gesture.inverse);
   const delta = [point[0] - gesture.point[0], point[1] - gesture.point[1]];
   const motion = gesture.roomHandle ? Math.abs(delta[1]) : Math.hypot(...delta);
@@ -1445,6 +1471,12 @@ function endGesture(event, cancelled = false) {
   const active = gesture;
   gesture = null;
   viewport.classList.remove('is-dragging');
+  if (active.background) {
+    if (!cancelled && !active.moved && Geometry.distance(active.point, [event.clientX, event.clientY]) < 3) {
+      selectItem(null);
+    }
+    return;
+  }
   if (active.create) {
     drawCreationPreview(null);
     if (!cancelled) {
@@ -1550,7 +1582,11 @@ byId('clear-measurements').onclick = () => {
 };
 byId('zoom-out').onclick = () => zoom(1 / 1.2);
 byId('zoom-in').onclick = () => zoom(1.2);
-byId('zoom-fit').onclick = () => { view = [...PLAN.viewBox]; updateView(); };
+byId('zoom-fit').onclick = () => {
+  if (gesture) return;
+  view = [...PLAN.viewBox];
+  updateView();
+};
 
 function exportScene() {
   draw();
