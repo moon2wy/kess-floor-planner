@@ -1234,40 +1234,77 @@ function displayedName(item) {
   return state.names[item.id] ?? item.name;
 }
 
-function updateFurnitureName(item) {
-  const name = state.names[item.id];
-  if (name === item.renderedName) return;
-  item.renderedName = name;
-  item.node.setAttribute('aria-label', displayedName(item));
-  if (!item.originalLabels) item.originalLabels = item.labels;
-  item.nameLabel?.remove();
-  const first = item.originalLabels[0];
-  if (!first) return;
-  if (!name) {
-    first.element.removeAttribute('display');
-    item.labels = item.originalLabels;
+function balancedNameLines(characters, count) {
+  const lines = [];
+  let remaining = characters;
+  for (let rows = count; rows > 1 && remaining.length; rows--) {
+    const middle = Math.ceil(remaining.length / rows);
+    const offset = remaining[middle - 1] === ' ' && middle > 1 ? -1 : 0;
+    const split = middle + offset;
+    lines.push(remaining.slice(0, split).join('').trim());
+    remaining = remaining.slice(split);
+    if (remaining[0] === ' ') remaining = remaining.slice(1);
+  }
+  if (remaining.length) lines.push(remaining.join(''));
+  return lines;
+}
+
+function fitFurnitureName(label, name, width, height) {
+  const characters = Array.from(name);
+  const maxSize = 300;
+  const lineHeight = 1.14;
+  label.setAttribute('font-size', maxSize);
+  let best;
+  for (let count = 1; count <= Math.min(4, characters.length); count++) {
+    const lines = balancedNameLines(characters, count);
+    let maxLength = 0;
+    for (const line of lines) {
+      label.textContent = line;
+      maxLength = Math.max(maxLength, label.getComputedTextLength());
+    }
+    const size = Math.min(maxSize, maxSize * width / Math.max(1, maxLength),
+      height / ((lines.length - 1) * lineHeight + 1.2));
+    if (!best || size > best.size * 1.05) best = { lines, size };
+    if (best.size === maxSize) break;
+  }
+  label.textContent = '';
+  label.setAttribute('font-size', best.size);
+  for (const [index, line] of best.lines.entries()) {
+    label.append(svgEl('tspan', { x: 0, y: index * best.size * lineHeight }, line));
+  }
+}
+
+function updateFurnitureName(item, pose) {
+  const customName = state.names[item.id];
+  const name = customName ?? item.name;
+  const sideways = pose.angle % 180 !== 0;
+  if (!customName && !item.custom) {
+    if (item.nameLabel) {
+      item.nameLabel.remove();
+      item.nameLabel = null;
+      item.originalLabels[0]?.element.removeAttribute('display');
+      item.labels = item.originalLabels;
+      item.node.setAttribute('aria-label', name);
+    }
     return;
   }
-  first.element.setAttribute('display', 'none');
-  const [x, y, width, height] = first.area;
-  const centerX = x + width / 2;
-  const centerY = y + height / 2;
-  const color = first.element.querySelector('text')?.getAttribute('fill') ?? first.element.getAttribute('fill') ?? '#192b42';
-  const words = name.split(' ');
-  const midpoint = Math.ceil(name.length / 2);
-  const space = words.length > 1 ? name.lastIndexOf(' ', midpoint) : -1;
-  const cut = space > 0 && space > midpoint / 2 ? space : midpoint;
-  const lines = name.length > 9 ? [name.slice(0, cut).trim(), name.slice(cut).trim()] : [name];
-  const size = Math.min(190, height / (lines.length + 1));
-  const label = svgEl('text', { x: centerX, 'text-anchor': 'middle', 'dominant-baseline': 'central',
-    'font-size': size, 'font-weight': 700, fill: color });
-  for (const [i, line] of lines.entries()) {
-    label.append(svgEl('tspan', { x: centerX, y: centerY + (i - (lines.length - 1) / 2) * size * 1.18 }, line));
-  }
+  if (item.nameLabel && name === item.renderedName && sideways === item.renderedSideways) return;
+  if (!item.originalLabels) item.originalLabels = item.labels;
+  const first = item.originalLabels[0];
+  const area = item.nameArea ?? first?.area;
+  if (!area) return;
+  const color = first?.element.querySelector('text')?.getAttribute('fill') ?? item.color;
+  first?.element.setAttribute('display', 'none');
+  item.nameLabel?.remove();
+  const label = svgEl('text', { 'text-anchor': 'middle', 'font-weight': 700, fill: color });
   item.node.append(label);
+  const [, , w, h] = area;
+  fitFurnitureName(label, name, sideways ? h : w, sideways ? w : h);
   item.nameLabel = label;
-  const bounds = label.getBBox();
-  item.labels = [{ element: label, area: first.area, bounds }, ...item.originalLabels.slice(1)];
+  item.renderedName = name;
+  item.renderedSideways = sideways;
+  item.node.setAttribute('aria-label', name);
+  item.labels = [{ element: label, area, bounds: label.getBBox() }, ...item.originalLabels.slice(1)];
 }
 
 function officeDesk(w, h, right) {
@@ -1283,7 +1320,7 @@ function officeDesk(w, h, right) {
     outline: points.map(([x, y]) => [mirror(x), Math.round(y * 1000) / 1000]),
     path: 'M' + mirror(0) + ' 0 H' + mirror(w) + ' V700 H' + mirror(850)
       + ' Q' + mirror(700) + ' 700 ' + mirror(700) + ' 850 V' + h + ' H' + mirror(0) + ' Z',
-    labelArea: [right ? w - 660 : 40, 80, 620, h - 160],
+    labelArea: [45, 45, w - 90, 610],
     chair: [mirror(w - 470), h - 120],
   };
 }
@@ -1309,14 +1346,12 @@ function syncCustomFurniture() {
     node.append(desk ? svgEl('path', { d: desk.path, ...appearance }) : svgEl('rect', { width: w, height: h, ...appearance }));
     if (desk) node.append(svgEl('circle', { cx: desk.chair[0], cy: desk.chair[1], r: 250, fill: 'none',
       stroke: color, 'stroke-width': 18, 'stroke-dasharray': '45 32', 'pointer-events': 'none' }));
-    const area = desk?.labelArea ?? [0, 0, w, h];
-    const label = svgEl('text', { x: area[0] + area[2] / 2, y: area[1] + area[3] / 2, 'text-anchor': 'middle',
-      'dominant-baseline': 'central', 'font-size': Math.min(155, area[2] / 5.5, h / 2), fill: color }, name);
-    node.append(label, svgEl('polygon', { class: 'object-outline', 'aria-hidden': 'true',
+    const inset = Math.min(40, w / 10, h / 10);
+    const nameArea = desk?.labelArea ?? [inset, inset, w - 2 * inset, h - 2 * inset];
+    node.append(svgEl('polygon', { class: 'object-outline', 'aria-hidden': 'true',
       points: outline.map(point => point.join(',')).join(' ') }));
     byId('furniture-layer').append(node);
-    items.set(id, { id, name, color, center, outline, w, h, node, custom: true,
-      labels: [{ element: label, area, bounds: label.getBBox() }] });
+    items.set(id, { id, name, color, center, outline, w, h, node, custom: true, nameArea, labels: [] });
   }
 }
 
@@ -1405,7 +1440,7 @@ function updateShapes() {
   }
   for (const item of items.values()) {
     const pose = state.poses[item.id];
-    updateFurnitureName(item);
+    updateFurnitureName(item, pose);
     updatePose(item, pose);
     const outline = Geometry.place(item.outline, item.center, pose);
     plotted.set(item.id, { id: item.id, name: displayedName(item), ...Geometry.shape(outline) });
