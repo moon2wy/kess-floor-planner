@@ -1313,7 +1313,7 @@ function officeDesk(w, h, right) {
     path: 'M' + mirror(0) + ' 0 H' + mirror(w) + ' V700 H' + mirror(850)
       + ' Q' + mirror(700) + ' 700 ' + mirror(700) + ' 850 V' + h + ' H' + mirror(0) + ' Z',
     labelArea: [45, 45, w - 90, 610],
-    chair: [mirror(w - 470), h - 120],
+    chair: [mirror(w === 1400 ? (700 + w) / 2 : w - 470), h - 120],
   };
 }
 
