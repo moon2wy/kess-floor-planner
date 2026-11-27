@@ -203,6 +203,20 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
 .readouts strong { white-space: nowrap; font-weight: 730; font-variant-numeric: tabular-nums; }
 .readouts li.overlap strong { color: var(--danger); }
 .gap-toggle { min-height: 26px; padding: 2px 5px; font-size: 13px; color: #235390; }
+.color-panel .empty { margin-bottom: 8px; }
+.color-target { font-size: 14px; font-weight: 700; margin-bottom: 8px; word-break: keep-all; }
+.color-row { display: grid; grid-template-columns: 1fr 44px auto; align-items: center; gap: 7px; margin-top: 7px; font-size: 14px; color: var(--muted); }
+.color-row input[type="color"] { width: 44px; height: 32px; padding: 2px; border: 1px solid #b7c8da; border-radius: 6px; background: white; cursor: pointer; }
+.color-row input[type="color"]:disabled { cursor: default; opacity: .5; }
+.color-row button { min-height: 32px; padding: 3px 8px; font-size: 13px; }
+#save-color { width: 100%; margin-top: 10px; }
+.saved-colors { list-style: none; display: flex; flex-wrap: wrap; gap: 7px; padding: 0; margin: 8px 0 0; }
+.saved-colors li { position: relative; }
+.saved-colors .apply-color { width: 42px; height: 34px; min-height: 0; padding: 0; border: 2px solid #c9d5e3; border-radius: 7px; font-weight: 800; font-size: 15px; }
+.saved-colors .apply-color:hover:not(:disabled) { border-color: #145dba; }
+.saved-colors .remove-color { position: absolute; top: -7px; right: -7px; width: 19px; height: 19px; min-height: 0; padding: 0; border-radius: 50%; font-size: 12px; line-height: 1; background: #fff; display: none; }
+.saved-colors li:is(:hover, :focus-within) .remove-color { display: block; }
+.saved-colors-empty { font-size: 13px; color: var(--muted); margin-top: 6px; }
 .swatch { width: 13px; height: 13px; flex: 0 0 13px; border-radius: 4px; background: var(--item-color, #71839b); }
 .toast { position: fixed; z-index: 5; bottom: 20px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); width: max-content; padding: 12px 16px; border-radius: 9px; background: #172f50; color: white; font-size: 15px; box-shadow: 0 6px 24px #172f5045; }
 #print-sheet { display: none; }
@@ -537,6 +551,25 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
           <ul id="clearance-list" class="readouts"></ul>
         </div>
       </section>
+      <section id="color-panel" class="panel color-panel" aria-label="색상">
+        <div class="panel-header"><h2>색상</h2></div>
+        <p id="color-empty" class="empty">가구를 선택하거나 여러 개를 끌어 선택하면 색을 바꿀 수 있어요.</p>
+        <p id="color-target" class="color-target" hidden></p>
+        <div class="color-row">
+          <label for="fill-color">가구 색</label>
+          <input id="fill-color" type="color" value="#ffffff">
+          <button id="fill-reset" type="button">기본</button>
+        </div>
+        <div class="color-row">
+          <label for="text-color">글자 색</label>
+          <input id="text-color" type="color" value="#24538f">
+          <button id="text-reset" type="button">기본</button>
+        </div>
+        <button id="save-color" type="button">이 색 조합 저장</button>
+        <h3>저장한 색</h3>
+        <ul id="saved-colors" class="saved-colors" aria-label="저장한 색 조합"></ul>
+        <p id="saved-colors-empty" class="saved-colors-empty">저장한 색이 없어요.</p>
+      </section>
 
     </aside>
   </main>
@@ -849,6 +882,7 @@ const fresh = () => ({
   measures: [],
   custom: {},
   names: {},
+  colors: {},
   ...(planNumber ? { entryY: entry.startY } : {}),
   ...(planNumber === 1 ? { room: { extension: 1200 } } : {}),
 });
@@ -923,6 +957,12 @@ function restoreLayout(saved) {
   for (const [id, value] of Object.entries(saved?.names ?? {})) {
     const name = cleanName(value);
     if (name && Object.hasOwn(layout.poses, id)) layout.names[id] = name;
+  }
+  for (const [id, value] of Object.entries(saved?.colors ?? {})) {
+    if (!Object.hasOwn(layout.poses, id)) continue;
+    const entry = {};
+    for (const channel of ['fill', 'text']) if (isHexColor(value?.[channel])) entry[channel] = value[channel].toLowerCase();
+    if (Object.keys(entry).length) layout.colors[id] = entry;
   }
   if (layout.room) for (const id of Object.keys(roomNames)) shapeIds.add(id);
   const validAnchor = a => Array.isArray(a?.point) && a.point.length === 2 && a.point.every(Number.isFinite)
@@ -1506,6 +1546,7 @@ function deleteCustomFurniture() {
     delete state.custom[id];
     delete state.poses[id];
     delete state.names[id];
+    delete state.colors[id];
     selected = null;
   });
   byId('select-mode').focus();
@@ -1590,6 +1631,143 @@ function readout(name, value, collision = false) {
   return row;
 }
 
+const colorPresetKey = 'kess-floor-planner:color-presets';
+let colorBase = null;
+
+function isHexColor(value) {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function hexColor(value, fallback) {
+  if (isHexColor(value)) return value.toLowerCase();
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(value ?? '');
+  return short ? ('#' + short[1] + short[1] + short[2] + short[2] + short[3] + short[3]).toLowerCase() : fallback;
+}
+
+function itemBody(item) {
+  if (item.body === undefined) {
+    item.body = [...item.node.children].find(element =>
+      ['path', 'rect', 'circle', 'polygon', 'ellipse'].includes(element.localName)
+      && !element.classList.contains('object-outline')
+      && element.getAttribute('fill') && element.getAttribute('fill') !== 'none') ?? null;
+    if (item.body) item.body.dataset.baseFill = item.body.getAttribute('fill');
+  }
+  return item.body;
+}
+
+function itemTexts(item) {
+  const texts = [...item.node.querySelectorAll('text')];
+  for (const text of texts) if (!text.dataset.baseFill) text.dataset.baseFill = text.getAttribute('fill') ?? '#000000';
+  return texts;
+}
+
+function applyItemColors(item) {
+  const colors = state.colors?.[item.id] ?? {};
+  const body = itemBody(item);
+  if (body) body.setAttribute('fill', colors.fill ?? body.dataset.baseFill);
+  for (const text of itemTexts(item)) text.setAttribute('fill', colors.text ?? text.dataset.baseFill);
+}
+
+function colorTargets() {
+  return (grouped.size ? [...grouped] : selected ? [selected] : []).filter(id => items.has(id));
+}
+
+function currentColor(id, channel) {
+  const item = items.get(id);
+  const saved = state.colors?.[id]?.[channel];
+  if (saved) return saved;
+  if (channel === 'fill') return hexColor(itemBody(item)?.dataset.baseFill, '#ffffff');
+  return hexColor(itemTexts(item)[0]?.dataset.baseFill ?? item.nameColor ?? item.color, '#24538f');
+}
+
+function setColor(channel, value, ids = colorTargets()) {
+  state.colors ??= {};
+  for (const id of ids) {
+    const entry = { ...(state.colors[id] ?? {}) };
+    if (value) entry[channel] = value;
+    else delete entry[channel];
+    if (Object.keys(entry).length) state.colors[id] = entry;
+    else delete state.colors[id];
+  }
+}
+
+function readColorPresets() {
+  try {
+    const list = JSON.parse(localStorage.getItem(colorPresetKey) ?? '[]');
+    return Array.isArray(list) ? list.filter(p => isHexColor(p?.fill) && isHexColor(p?.text)).slice(0, 24) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeColorPresets(list) {
+  try {
+    localStorage.setItem(colorPresetKey, JSON.stringify(list));
+    return true;
+  } catch {
+    toast('색을 저장할 수 없어요. 브라우저 저장공간을 확인하세요.');
+    return false;
+  }
+}
+
+function drawColorPanel() {
+  const ids = colorTargets();
+  const first = ids[0];
+  const hasBody = ids.some(id => itemBody(items.get(id)));
+  byId('color-empty').hidden = Boolean(ids.length);
+  const target = byId('color-target');
+  target.hidden = !ids.length;
+  target.textContent = ids.length > 1 ? `${ids.length}개 가구에 적용` : first ? displayedName(items.get(first)) : '';
+  const fill = byId('fill-color');
+  const text = byId('text-color');
+  fill.disabled = !hasBody;
+  text.disabled = !ids.length;
+  if (first && document.activeElement !== fill) fill.value = currentColor(first, 'fill');
+  if (first && document.activeElement !== text) text.value = currentColor(first, 'text');
+  byId('fill-reset').disabled = !ids.some(id => state.colors?.[id]?.fill);
+  byId('text-reset').disabled = !ids.some(id => state.colors?.[id]?.text);
+  byId('save-color').disabled = !ids.length;
+  drawColorPresets(ids.length > 0);
+}
+
+let renderedPresets = null;
+function drawColorPresets(enabled, force = false) {
+  const presets = readColorPresets();
+  const key = JSON.stringify(presets) + enabled;
+  if (!force && key === renderedPresets) return;
+  renderedPresets = key;
+  const list = byId('saved-colors');
+  list.replaceChildren();
+  byId('saved-colors-empty').hidden = presets.length > 0;
+  for (const [index, preset] of presets.entries()) {
+    const row = el('li');
+    const apply = el('button', 'apply-color', '가');
+    apply.type = 'button';
+    apply.style.background = preset.fill;
+    apply.style.color = preset.text;
+    apply.disabled = !enabled;
+    apply.title = `가구 ${preset.fill} · 글자 ${preset.text}${enabled ? ' — 누르면 선택한 가구에 적용' : ''}`;
+    apply.setAttribute('aria-label', `저장한 색 ${index + 1} 적용: 가구 ${preset.fill}, 글자 ${preset.text}`);
+    apply.addEventListener('click', () => {
+      if (gesture || !colorTargets().length) return;
+      edit(() => {
+        setColor('fill', preset.fill, colorTargets().filter(id => itemBody(items.get(id))));
+        setColor('text', preset.text);
+      });
+      toast('저장한 색을 적용했어요.');
+    });
+    const remove = el('button', 'remove-color', '×');
+    remove.type = 'button';
+    remove.title = '이 색 삭제';
+    remove.setAttribute('aria-label', `저장한 색 ${index + 1} 삭제`);
+    remove.addEventListener('click', () => {
+      if (writeColorPresets(readColorPresets().filter((_, i) => i !== index))) drawColorPresets(colorTargets().length > 0, true);
+    });
+    row.append(apply, remove);
+    list.append(row);
+  }
+}
+
 function drawSelection(gaps, collisionNames) {
   const detail = byId('selection-details');
   const empty = byId('selection-empty');
@@ -1654,6 +1832,7 @@ function draw() {
   let gaps = [];
   for (const item of items.values()) {
     const object = plotted.get(item.id);
+    applyItemColors(item);
     const active = item.id === selected;
     const neighbours = item.kind === 'text' ? [] : all.filter(other => other.id !== item.id);
     const hasCollision = neighbours.some(other => isCollision(object, other));
@@ -1674,6 +1853,7 @@ function draw() {
   const displayed = gaps.find(gap => gap.id === shownGap && !gap.collision);
   if (displayed && !gapHidden && mode === 'select') drawDimension(displayed.a, displayed.b, true, true);
   drawSelection(gaps, gaps.filter(gap => gap.collision).map(gap => gap.name));
+  drawColorPanel();
   drawMeasurements();
   if (mode === 'measure' && pendingAnchor) {
     const start = resolveAnchor(pendingAnchor);
@@ -2096,6 +2276,34 @@ byId('rename-form').onsubmit = event => {
     else delete state.names[selected];
   });
   input.value = displayedName(item);
+};
+for (const [channel, inputId, resetId] of [['fill', 'fill-color', 'fill-reset'], ['text', 'text-color', 'text-reset']]) {
+  const input = byId(inputId);
+  input.addEventListener('input', () => {
+    if (gesture || !colorTargets().length) return;
+    colorBase ??= copyState(state);
+    const ids = channel === 'fill' ? colorTargets().filter(id => itemBody(items.get(id))) : colorTargets();
+    setColor(channel, input.value.toLowerCase(), ids);
+    draw();
+  });
+  input.addEventListener('change', () => {
+    if (!colorBase) return;
+    const previous = colorBase;
+    colorBase = null;
+    commit(previous);
+  });
+  byId(resetId).onclick = () => {
+    if (gesture || !colorTargets().length) return;
+    edit(() => setColor(channel, null));
+  };
+}
+byId('save-color').onclick = () => {
+  const preset = { fill: byId('fill-color').value.toLowerCase(), text: byId('text-color').value.toLowerCase() };
+  const list = readColorPresets().filter(p => p.fill !== preset.fill || p.text !== preset.text);
+  if (writeColorPresets([preset, ...list].slice(0, 24))) {
+    drawColorPresets(colorTargets().length > 0, true);
+    toast('색 조합을 저장했어요. 다른 가구를 선택하고 눌러 적용하세요.');
+  }
 };
 byId('erase-mode').onclick = () => setMode('erase');
 byId('undo').onclick = () => travel(undoStack, redoStack);
