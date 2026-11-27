@@ -163,6 +163,7 @@ h1 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 750; letter-sp
 .create-form label { display: grid; gap: 3px; font-size: 13px; color: var(--muted); }
 .create-form input, .create-form select { width: 86px; min-height: 36px; padding: 5px 8px; border: 1px solid #b7c8da; border-radius: 6px; background: white; color: var(--ink); font: inherit; }
 .create-form select { width: auto; max-width: 100%; }
+.create-form #create-text { width: min(200px, 65vw); }
 .rename-form { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .rename-form label { flex: 1 0 100%; color: var(--muted); font-size: 13px; }
 .rename-form input { flex: 1; min-width: 100px; padding: 6px 8px; border: 1px solid #b7c8da; border-radius: 6px; font: inherit; }
@@ -480,6 +481,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
       <g class="room-grip"><circle r="155" /><path d="M0 -100 V100 M-44 -54 L0 -100 L44 -54 M-44 54 L0 100 L44 54" /></g>
     </g>
   </g>
+  <g id="text-layer"></g>
   <g id="creation-preview" pointer-events="none" />
   <g id="annotation-layer" pointer-events="none" /></svg>
         <div id="create-form" class="create-form" hidden>
@@ -487,6 +489,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
             <select id="create-kind">
               <option value="rectangle">사각형</option>
               <option value="circle">원형</option>
+              <option value="text">텍스트</option>
               <option value="desk-1600-left">1,600 × 1,200 · 좌향</option>
               <option value="desk-1600-right">1,600 × 1,200 · 우향</option>
               <option value="desk-1400-left">1,400 × 1,200 · 좌향</option>
@@ -496,6 +499,7 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
           <label id="create-width-field">가로 (mm) <input id="create-width" type="number" min="1" max="100000" step="1" value="1200" inputmode="numeric"></label>
           <label id="create-height-field">세로 (mm) <input id="create-height" type="number" min="1" max="100000" step="1" value="700" inputmode="numeric"></label>
           <label id="create-diameter-field" hidden>지름 (mm) <input id="create-diameter" type="number" min="1" max="100000" step="1" value="1000" inputmode="numeric" required></label>
+          <label id="create-text-field" hidden>텍스트 <input id="create-text" type="text" maxlength="48" autocomplete="off"></label>
           <button id="cancel-create" type="button">취소</button>
         </div>
         <div class="zoom" aria-label="확대 도구">
@@ -516,9 +520,9 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
           <p id="selected-name" class="selected-name"></p>
           <p id="selected-size" class="selected-size"></p>
           <form id="rename-form" class="rename-form">
-            <label for="furniture-name">가구 이름</label>
+            <label id="furniture-name-label" for="furniture-name">가구 이름</label>
             <input id="furniture-name" type="text" maxlength="48" placeholder="기본 이름" autocomplete="off">
-            <button type="submit">이름 저장</button>
+            <button id="rename-submit" type="submit">이름 저장</button>
           </form>
           <div id="desktop-object-actions">
             <div id="object-actions" class="object-actions">
@@ -881,7 +885,10 @@ function restoreLayout(saved) {
     const preset = deskPresets.get(size?.kind);
     if (preset) layout.custom[id] = { ...preset, kind: size.kind };
     else if (size?.kind === 'circle' && validSize(size.w)) layout.custom[id] = { w: size.w, h: size.w, kind: 'circle' };
-    else if (validSize(size?.w) && validSize(size?.h)) layout.custom[id] = { w: size.w, h: size.h };
+    else if (validSize(size?.w) && validSize(size?.h)) {
+      layout.custom[id] = { w: size.w, h: size.h };
+      if (size.kind === 'text') layout.custom[id].kind = 'text';
+    }
   }
   for (const [id, pose] of Object.entries(saved?.poses ?? {})) {
     if ((Object.hasOwn(layout.poses, id) || Object.hasOwn(layout.custom, id)) && Number.isFinite(pose?.x) && Number.isFinite(pose?.y)
@@ -1375,8 +1382,9 @@ function syncCustomFurniture() {
     if (items.has(id)) continue;
     const desk = deskPresets.has(kind) ? officeDesk(w, h, kind.endsWith('-right')) : null;
     const isCircle = kind === 'circle';
-    const name = desk ? '사무용 책상' : (isCircle ? '원형 가구 ' : '새 가구 ') + id.slice(7);
-    const color = '#285da4';
+    const isText = kind === 'text';
+    const name = desk ? '사무용 책상' : (isCircle ? '원형 가구 ' : isText ? '텍스트 ' : '새 가구 ') + id.slice(7);
+    const color = isText ? '#000000' : '#285da4';
     const center = [w / 2, h / 2];
     const radius = w / 2;
     const outline = isCircle ? Array.from({ length: 64 }, (_, i) => {
@@ -1388,14 +1396,14 @@ function syncCustomFurniture() {
     const appearance = { fill: '#e8f0ff', stroke: color, 'stroke-width': Math.min(23, w / 4, h / 4) };
     if (isCircle) node.append(svgEl('circle', { cx: radius, cy: radius, r: radius, ...appearance }));
     else if (desk) node.append(svgEl('path', { d: desk.path, ...appearance }));
-    else node.append(svgEl('rect', { width: w, height: h, ...appearance }));
+    else if (!isText) node.append(svgEl('rect', { width: w, height: h, ...appearance }));
     if (desk) node.append(svgEl('circle', { cx: desk.chair[0], cy: desk.chair[1], r: 250, fill: 'none',
       stroke: color, 'stroke-width': 18, 'stroke-dasharray': '45 32', 'pointer-events': 'none' }));
     const inset = isCircle ? w * 0.16 : Math.min(40, w / 10, h / 10);
     const nameArea = desk?.labelArea ?? [inset, inset, w - 2 * inset, h - 2 * inset];
     node.append(svgEl('polygon', { class: 'object-outline', 'aria-hidden': 'true',
       points: outline.map(point => point.join(',')).join(' ') }));
-    byId('furniture-layer').append(node);
+    byId(isText ? 'text-layer' : 'furniture-layer').append(node);
     items.set(id, { id, name, color, center, outline, w, h, kind, node, custom: true,
       nameArea, rotatedNameArea: desk?.rotatedLabelArea, labels: [] });
   }
@@ -1449,12 +1457,20 @@ function createFurniture(point, box) {
   const height = byId('create-height');
   const kind = byId('create-kind').value;
   const isCircle = kind === 'circle';
+  const isText = kind === 'text';
   const diameter = byId('create-diameter');
   const preset = deskPresets.get(kind);
   const w = preset?.w ?? box?.w ?? (isCircle ? diameter : width).valueAsNumber;
   const h = isCircle ? w : preset?.h ?? box?.h ?? height.valueAsNumber;
   if (!validSize(w) || !validSize(h)) {
     (isCircle ? diameter : validSize(w) ? height : width).reportValidity();
+    return;
+  }
+  const textInput = byId('create-text');
+  const text = isText ? cleanName(textInput.value) : '';
+  if (isText && !text) {
+    textInput.focus();
+    toast('텍스트를 입력하세요.');
     return;
   }
   const x = box?.x ?? Math.round(point[0] - w / 2);
@@ -1469,13 +1485,15 @@ function createFurniture(point, box) {
     height.value = h;
   }
   edit(() => {
-    state.custom[id] = isCircle || preset ? { w, h, kind } : { w, h };
+    state.custom[id] = isCircle || isText || preset ? { w, h, kind } : { w, h };
+    if (isText) state.names[id] = text;
     state.poses[id] = { x, y, angle: 0, flip: false };
     selected = id;
     shownGap = null;
     gapHidden = false;
   });
   setMode('select');
+  if (isText) textInput.value = '';
   items.get(id).node.focus({ preventScroll: true });
 }
 
@@ -1507,7 +1525,7 @@ function updateShapes() {
     updateFurnitureName(item, pose);
     updatePose(item, pose);
     const outline = Geometry.place(item.outline, item.center, pose);
-    plotted.set(item.id, { id: item.id, name: displayedName(item), ...Geometry.shape(outline) });
+    plotted.set(item.id, { id: item.id, name: displayedName(item), kind: item.kind, ...Geometry.shape(outline) });
   }
 }
 
@@ -1591,7 +1609,12 @@ function drawSelection(gaps, collisionNames) {
   }
   const name = state.names[selected] ?? '';
   if (nameEditorItem !== selected || nameEditorValue !== name) {
-    byId('furniture-name').value = name || item.name;
+    const isText = item.kind === 'text';
+    const input = byId('furniture-name');
+    input.value = name || item.name;
+    input.placeholder = isText ? '텍스트 입력' : '기본 이름';
+    byId('furniture-name-label').textContent = isText ? '텍스트' : '가구 이름';
+    byId('rename-submit').textContent = isText ? '텍스트 저장' : '이름 저장';
     nameEditorItem = selected;
     nameEditorValue = name;
   }
@@ -1627,12 +1650,12 @@ function draw() {
   updateShapes();
   for (const id of grouped) if (!items.has(id)) grouped.delete(id);
   annotations.replaceChildren();
-  const all = [...plotted.values()];
+  const all = [...plotted.values()].filter(object => object.kind !== 'text');
   let gaps = [];
   for (const item of items.values()) {
     const object = plotted.get(item.id);
     const active = item.id === selected;
-    const neighbours = all.filter(other => other.id !== item.id);
+    const neighbours = item.kind === 'text' ? [] : all.filter(other => other.id !== item.id);
     const hasCollision = neighbours.some(other => isCollision(object, other));
     item.node.classList.toggle('is-selected', active);
     item.node.classList.toggle('has-collision', hasCollision);
@@ -1662,7 +1685,8 @@ function draw() {
     : mode === 'erase' ? '지울 측정선이나 숫자를 누르세요'
       : mode === 'create' ? (deskPresets.has(byId('create-kind').value) ? '책상을 놓을 위치를 누르세요'
         : byId('create-kind').value === 'circle' ? '원을 끌어 그리거나, 지름을 입력하고 놓을 자리를 누르세요'
-          : '사각형을 끌어 그리거나, 치수를 입력하고 놓을 자리를 누르세요')
+          : byId('create-kind').value === 'text' ? '텍스트를 입력하고, 도면에서 영역을 끌어 그리거나 위치를 누르세요'
+            : '사각형을 끌어 그리거나, 치수를 입력하고 놓을 자리를 누르세요')
         : grouped.size ? '선택한 가구 중 하나를 끌어 함께 이동하세요'
           : '가구를 끌어 이동 · 빈 곳에서 드래그해 여러 가구 선택';
   updateHistory();
@@ -1704,6 +1728,7 @@ function snapAnchor(point) {
   const threshold = 11 / Math.abs(scene.getScreenCTM().a);
   let closest = { point: point.map(Math.round), distance: threshold };
   for (const object of plotted.values()) {
+    if (object.kind === 'text') continue;
     for (const [edge, [a, b]] of object.edges.entries()) {
       const candidate = Geometry.project(point, a, b);
       if (candidate.distance < closest.distance) closest = { id: object.id, edge, ...candidate };
@@ -2047,10 +2072,11 @@ byId('cancel-create').onclick = () => { setMode('select'); byId('create-mode').f
 byId('delete-custom').onclick = deleteCustomFurniture;
 byId('create-kind').onchange = () => {
   const kind = byId('create-kind').value;
-  const useWidthAndHeight = kind === 'rectangle';
+  const useWidthAndHeight = kind === 'rectangle' || kind === 'text';
   byId('create-width-field').hidden = !useWidthAndHeight;
   byId('create-height-field').hidden = !useWidthAndHeight;
   byId('create-diameter-field').hidden = kind !== 'circle';
+  byId('create-text-field').hidden = kind !== 'text';
   drawCreationPreview(null);
   draw();
 };
@@ -2060,8 +2086,13 @@ byId('rename-form').onsubmit = event => {
   const input = byId('furniture-name');
   const item = items.get(selected);
   const name = cleanName(input.value);
+  if (item.kind === 'text' && !name) {
+    input.focus();
+    toast('텍스트를 입력하세요.');
+    return;
+  }
   edit(() => {
-    if (name && name !== item.name) state.names[selected] = name;
+    if (item.kind === 'text' || (name && name !== item.name)) state.names[selected] = name;
     else delete state.names[selected];
   });
   input.value = displayedName(item);
