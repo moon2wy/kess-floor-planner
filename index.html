@@ -231,10 +231,24 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
   .inspector { margin-top: 10px; }
 }
 
+#layout-archive { width: min(460px, calc(100vw - 32px)); max-height: 82vh; padding: 18px;
+  box-sizing: border-box; border: 1px solid #dce5ed; border-radius: 12px; color: #203347; }
+#layout-archive::backdrop { background: #172f5066; }
+.archive-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#archive-plan, #archive-feedback { font-size: 14px; color: #526576; margin-top: 8px; }
+#archive-feedback:empty { display: none; }
+#archive-name-form { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+#archive-name-form label { flex: 1 0 100%; font-size: 14px; }
+#archive-name { flex: 1; min-width: 0; border: 1px solid #b7c8da; border-radius: 6px; padding: 8px; font: inherit; }
+#archive-list { padding: 0; margin: 12px 0 0; list-style: none; }
+#archive-list li + li { margin-top: 6px; }
+#archive-list button { width: 100%; text-align: start; overflow-wrap: anywhere; }
+#archive-list small { display: block; color: #526576; }
+
 @page { size: A4 portrait; margin: 8mm; }
 @media print {
   html, body { margin: 0; background: white; }
-  .topbar, .workspace, .toast { display: none !important; }
+  .topbar, .workspace, .toast, #layout-archive { display: none !important; }
   #print-sheet { display: grid !important; width: 100%; min-height: 0; place-items: center; break-inside: avoid; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   #print-sheet svg { display: block; width: 100%; max-height: 277mm; }
 }
@@ -248,10 +262,27 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
     </div>
     <div class="file-actions">
       <button id="copy-link" type="button" hidden>링크 복사</button>
+      <button id="save-layout" type="button">배치 저장</button>
+      <button id="load-layout" type="button">배치 불러오기</button>
       <button id="export-png" type="button">PNG 저장</button>
       <button id="export-pdf" class="primary" type="button">PDF 저장</button>
     </div>
   </header>
+
+  <dialog id="layout-archive" aria-labelledby="archive-title">
+    <div class="archive-header">
+      <h2 id="archive-title"></h2>
+      <button id="close-archive" type="button">닫기</button>
+    </div>
+    <p id="archive-plan"></p>
+    <p id="archive-feedback" role="status"></p>
+    <form id="archive-name-form">
+      <label for="archive-name">배치 이름</label>
+      <input id="archive-name" type="text" maxlength="60" required autocomplete="off">
+      <button type="submit" class="primary">저장</button>
+    </form>
+    <ul id="archive-list" aria-label="저장된 배치"></ul>
+  </dialog>
 
   <main class="workspace">
     <section class="board" aria-label="배치 편집 도면">
@@ -837,57 +868,62 @@ let scheduled = 0;
 let undoStack;
 let redoStack;
 
+function restoreLayout(saved) {
+  const layout = fresh();
+  if (layout.room && Number.isFinite(saved?.room?.extension)) {
+    layout.room.extension = clampExtension(saved.room.extension, layout.entryY);
+  }
+  if (planNumber && Number.isFinite(saved?.entryY)) layout.entryY = clampEntry(saved.entryY, layout.room);
+  for (const [id, size] of Object.entries(saved?.custom ?? {})) {
+    if (!/^custom-[1-9][0-9]{0,5}$/.test(id)) continue;
+    const preset = deskPresets.get(size?.kind);
+    if (preset) layout.custom[id] = { ...preset, kind: size.kind };
+    else if (validSize(size?.w) && validSize(size?.h)) layout.custom[id] = { w: size.w, h: size.h };
+  }
+  for (const [id, pose] of Object.entries(saved?.poses ?? {})) {
+    if ((Object.hasOwn(layout.poses, id) || Object.hasOwn(layout.custom, id)) && Number.isFinite(pose?.x) && Number.isFinite(pose?.y)
+      && Math.abs(pose.x) < 100000 && Math.abs(pose.y) < 100000 && [0, 90, 180, 270].includes(pose.angle)) {
+      // Saved layouts include all furniture, even pieces the user never moved.
+      const savedVersion = saved.layoutVersion ?? 1;
+      const arrangement = previousArrangement[planNumber]?.[id];
+      if (savedVersion < 7 && arrangement
+          && pose.x === arrangement.x && pose.y === arrangement.y
+          && pose.angle === arrangement.angle && Boolean(pose.flip) === arrangement.flip) continue;
+      if (planNumber === 1 && savedVersion < 6 && id === 'copier'
+          && pose.x === 3900 && pose.y === 6589 && pose.angle === 0 && !pose.flip) continue;
+      const previousDefault = planNumber === 1 && savedVersion < 3 && previousTopRowPositions[id]
+        ? undefined : previousDefaultPoses[planNumber]?.[id];
+      if (savedVersion < 5 && previousDefault
+          && pose.x === previousDefault.x && pose.y === previousDefault.y
+          && pose.angle === previousDefault.angle && Boolean(pose.flip) === previousDefault.flip) continue;
+      const oldTopRowPosition = savedVersion === 1 && id === 'strategy-head'
+        ? [7750, 1900] : previousTopRowPositions[id];
+      const previous = id === 'meeting-table' && savedVersion < 4
+        ? [1200, 6950] : (savedVersion < 3 ? oldTopRowPosition : undefined);
+      if (planNumber === 1 && previous && pose.x === previous[0] && pose.y === previous[1]
+          && pose.angle === 0 && !pose.flip) continue;
+      layout.poses[id] = { x: pose.x, y: pose.y, angle: pose.angle, flip: Boolean(pose.flip) };
+    }
+  }
+  for (const id of Object.keys(layout.custom)) {
+    if (!layout.poses[id]) delete layout.custom[id];
+  }
+  const shapeIds = new Set([...Object.keys(layout.poses), ...fixed.map(part => part.id)]);
+  if (planNumber) shapeIds.add('main-entry');
+  for (const [id, value] of Object.entries(saved?.names ?? {})) {
+    const name = cleanName(value);
+    if (name && Object.hasOwn(layout.poses, id)) layout.names[id] = name;
+  }
+  if (layout.room) for (const id of Object.keys(roomNames)) shapeIds.add(id);
+  const validAnchor = a => Array.isArray(a?.point) && a.point.length === 2 && a.point.every(Number.isFinite)
+    && (!a.id || (shapeIds.has(a.id) && Number.isInteger(a.edge) && a.edge >= 0 && a.ratio >= 0 && a.ratio <= 1));
+  if (Array.isArray(saved?.measures)) layout.measures = saved.measures.filter(m => validAnchor(m?.a) && validAnchor(m?.b)).slice(0, 50);
+  return layout;
+}
+
 function readLayout() {
   try {
-    const saved = JSON.parse(localStorage.getItem(saveKey) ?? 'null');
-    if (state.room && Number.isFinite(saved?.room?.extension)) {
-      state.room.extension = clampExtension(saved.room.extension, state.entryY);
-    }
-    if (planNumber && Number.isFinite(saved?.entryY)) state.entryY = clampEntry(saved.entryY, state.room);
-    for (const [id, size] of Object.entries(saved?.custom ?? {})) {
-      if (!/^custom-[1-9][0-9]{0,5}$/.test(id)) continue;
-      const preset = deskPresets.get(size?.kind);
-      if (preset) state.custom[id] = { ...preset, kind: size.kind };
-      else if (validSize(size?.w) && validSize(size?.h)) state.custom[id] = { w: size.w, h: size.h };
-    }
-    for (const [id, pose] of Object.entries(saved?.poses ?? {})) {
-      if ((items.has(id) || Object.hasOwn(state.custom, id)) && Number.isFinite(pose?.x) && Number.isFinite(pose?.y)
-        && Math.abs(pose.x) < 100000 && Math.abs(pose.y) < 100000 && [0, 90, 180, 270].includes(pose.angle)) {
-        // Saved layouts include all furniture, even pieces the user never moved.
-        const savedVersion = saved.layoutVersion ?? 1;
-        const arrangement = previousArrangement[planNumber]?.[id];
-        if (savedVersion < 7 && arrangement
-            && pose.x === arrangement.x && pose.y === arrangement.y
-            && pose.angle === arrangement.angle && Boolean(pose.flip) === arrangement.flip) continue;
-        if (planNumber === 1 && savedVersion < 6 && id === 'copier'
-            && pose.x === 3900 && pose.y === 6589 && pose.angle === 0 && !pose.flip) continue;
-        const previousDefault = planNumber === 1 && savedVersion < 3 && previousTopRowPositions[id]
-          ? undefined : previousDefaultPoses[planNumber]?.[id];
-        if (savedVersion < 5 && previousDefault
-            && pose.x === previousDefault.x && pose.y === previousDefault.y
-            && pose.angle === previousDefault.angle && Boolean(pose.flip) === previousDefault.flip) continue;
-        const oldTopRowPosition = savedVersion === 1 && id === 'strategy-head'
-          ? [7750, 1900] : previousTopRowPositions[id];
-        const previous = id === 'meeting-table' && savedVersion < 4
-          ? [1200, 6950] : (savedVersion < 3 ? oldTopRowPosition : undefined);
-        if (planNumber === 1 && previous && pose.x === previous[0] && pose.y === previous[1]
-            && pose.angle === 0 && !pose.flip) continue;
-        state.poses[id] = { x: pose.x, y: pose.y, angle: pose.angle, flip: Boolean(pose.flip) };
-      }
-    }
-    for (const id of Object.keys(state.custom)) {
-      if (!state.poses[id]) delete state.custom[id];
-    }
-    const shapeIds = new Set([...items.keys(), ...Object.keys(state.custom), ...fixed.map(part => part.id)]);
-    if (planNumber) shapeIds.add('main-entry');
-    for (const [id, value] of Object.entries(saved?.names ?? {})) {
-      const name = cleanName(value);
-      if (name && Object.hasOwn(state.poses, id)) state.names[id] = name;
-    }
-    if (state.room) for (const id of Object.keys(roomNames)) shapeIds.add(id);
-    const validAnchor = a => Array.isArray(a?.point) && a.point.length === 2 && a.point.every(Number.isFinite)
-      && (!a.id || (shapeIds.has(a.id) && Number.isInteger(a.edge) && a.edge >= 0 && a.ratio >= 0 && a.ratio <= 1));
-    if (Array.isArray(saved?.measures)) state.measures = saved.measures.filter(m => validAnchor(m?.a) && validAnchor(m?.b)).slice(0, 50);
+    state = restoreLayout(JSON.parse(localStorage.getItem(saveKey) ?? 'null'));
   } catch {
     try { localStorage.getItem(saveKey); } catch { canStore = false; }
   }
@@ -1322,10 +1358,12 @@ function officeDesk(w, h, right) {
 
 function syncCustomFurniture() {
   for (const [id, item] of items) {
-    if (item.custom && !Object.hasOwn(state.custom, id)) {
+    if (!item.custom) continue;
+    const size = state.custom[id];
+    if (!size || size.w !== item.w || size.h !== item.h || size.kind !== item.kind) {
       item.node.remove();
       items.delete(id);
-      if (selected === id) selected = null;
+      if (!size && selected === id) selected = null;
     }
   }
   for (const [id, { w, h, kind }] of Object.entries(state.custom)) {
@@ -1346,7 +1384,7 @@ function syncCustomFurniture() {
     node.append(svgEl('polygon', { class: 'object-outline', 'aria-hidden': 'true',
       points: outline.map(point => point.join(',')).join(' ') }));
     byId('furniture-layer').append(node);
-    items.set(id, { id, name, color, center, outline, w, h, node, custom: true, nameArea, labels: [] });
+    items.set(id, { id, name, color, center, outline, w, h, kind, node, custom: true, nameArea, labels: [] });
   }
 }
 
@@ -1820,7 +1858,7 @@ function flipSelected() {
 }
 
 document.addEventListener('keydown', event => {
-  if (event.target.closest?.('input, select')) return;
+  if (byId('layout-archive').open || event.target.closest?.('input, select')) return;
   const key = event.key.toLowerCase();
   if ((event.ctrlKey || event.metaKey) && (key === 'z' || key === 'y')) {
     event.preventDefault();
@@ -1875,6 +1913,100 @@ document.addEventListener('keydown', event => {
   }
 });
 
+function snapshotPrefix() {
+  return saveKey + ':snapshot:';
+}
+
+function openLayoutArchive(saving) {
+  if (gesture) return;
+  const dialog = byId('layout-archive');
+  if (dialog.open) return;
+  byId('archive-title').textContent = saving ? '배치 저장' : '배치 불러오기';
+  byId('archive-plan').textContent = planName;
+  byId('archive-feedback').textContent = '';
+  byId('archive-name-form').hidden = !saving;
+  byId('archive-list').hidden = saving;
+  if (saving) byId('archive-name').value = '';
+  else renderSavedLayouts();
+  dialog.showModal();
+  if (saving) byId('archive-name').focus();
+}
+
+function renderSavedLayouts() {
+  const list = byId('archive-list');
+  const feedback = byId('archive-feedback');
+  list.replaceChildren();
+  const snapshots = [];
+  try {
+    const prefix = snapshotPrefix();
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(prefix)) continue;
+      let snapshot;
+      try { snapshot = JSON.parse(localStorage.getItem(key)); } catch { continue; }
+      if (snapshot?.layout?.poses && typeof snapshot.name === 'string' && Number.isFinite(snapshot.created)) {
+        snapshots.push(snapshot);
+      }
+    }
+  } catch {
+    feedback.textContent = '이 브라우저에서 저장된 배치에 접근할 수 없어요.';
+    return;
+  }
+  if (!snapshots.length) {
+    feedback.textContent = '이 층과 배치안에 저장한 배치가 없어요.';
+    return;
+  }
+  const date = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'medium' });
+  snapshots.sort((a, b) => b.created - a.created);
+  for (const snapshot of snapshots) {
+    const row = el('li');
+    const button = el('button', '', snapshot.name);
+    button.type = 'button';
+    button.append(el('small', '', date.format(snapshot.created)));
+    button.addEventListener('click', () => loadLayoutSnapshot(snapshot));
+    row.append(button);
+    list.append(row);
+  }
+}
+
+function saveLayoutSnapshot(event) {
+  event.preventDefault();
+  const name = byId('archive-name').value.trim();
+  const feedback = byId('archive-feedback');
+  if (!name) {
+    feedback.textContent = '배치 이름을 입력하세요.';
+    return;
+  }
+  const created = Date.now();
+  const id = globalThis.crypto?.randomUUID?.() ?? (created + '-' + Math.random().toString(36).slice(2));
+  try {
+    const snapshot = { name, created, layout: { ...state, layoutVersion } };
+    localStorage.setItem(snapshotPrefix() + id, JSON.stringify(snapshot));
+  } catch {
+    feedback.textContent = '배치를 저장할 수 없어요. 브라우저 저장공간을 확인하세요.';
+    return;
+  }
+  byId('layout-archive').close();
+  toast('배치를 저장했어요.');
+}
+
+function loadLayoutSnapshot(snapshot) {
+  const layout = restoreLayout(snapshot.layout);
+  byId('layout-archive').close();
+  pendingAnchor = currentAnchor = null;
+  grouped.clear();
+  shownGap = null;
+  gapHidden = false;
+  if (!Object.hasOwn(layout.poses, selected)) selected = null;
+  edit(() => { state = layout; });
+  setMode('select');
+  toast('배치를 불러왔어요.');
+}
+
+byId('save-layout').onclick = () => openLayoutArchive(true);
+byId('load-layout').onclick = () => openLayoutArchive(false);
+byId('close-archive').onclick = () => byId('layout-archive').close();
+byId('archive-name-form').onsubmit = saveLayoutSnapshot;
 byId('select-mode').onclick = () => setMode('select');
 byId('measure-mode').onclick = () => setMode('measure');
 byId('create-mode').onclick = () => setMode(mode === 'create' ? 'select' : 'create');
