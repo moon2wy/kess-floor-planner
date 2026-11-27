@@ -257,7 +257,10 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
 #archive-name { flex: 1; min-width: 0; border: 1px solid #b7c8da; border-radius: 6px; padding: 8px; font: inherit; }
 #archive-list { padding: 0; margin: 12px 0 0; list-style: none; }
 #archive-list li + li { margin-top: 6px; }
-#archive-list button { width: 100%; text-align: start; overflow-wrap: anywhere; }
+#archive-list li { display: flex; gap: 6px; align-items: stretch; }
+#archive-list .archive-load { flex: 1; min-width: 0; text-align: start; overflow-wrap: anywhere; }
+#archive-list .archive-delete { flex: none; padding-inline: 10px; color: var(--danger); }
+#archive-list .archive-delete.is-confirming { background: var(--danger); border-color: var(--danger); color: #fff; }
 #archive-list small { display: block; color: #526576; }
 .archive-share { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e3eaf1; }
 .archive-share h3 { margin: 0; font-size: 15px; color: #203347; }
@@ -2207,7 +2210,7 @@ function renderSavedLayouts() {
       let snapshot;
       try { snapshot = JSON.parse(localStorage.getItem(key)); } catch { continue; }
       if (snapshot?.layout?.poses && typeof snapshot.name === 'string' && Number.isFinite(snapshot.created)) {
-        snapshots.push(snapshot);
+        snapshots.push({ ...snapshot, key });
       }
     }
   } catch {
@@ -2222,11 +2225,35 @@ function renderSavedLayouts() {
   snapshots.sort((a, b) => b.created - a.created);
   for (const snapshot of snapshots) {
     const row = el('li');
-    const button = el('button', '', snapshot.name);
+    const button = el('button', 'archive-load', snapshot.name);
     button.type = 'button';
     button.append(el('small', '', date.format(snapshot.created)));
     button.addEventListener('click', () => loadLayoutSnapshot(snapshot));
-    row.append(button);
+    const remove = el('button', 'archive-delete', '삭제');
+    remove.type = 'button';
+    remove.setAttribute('aria-label', `'${snapshot.name}' 배치 삭제`);
+    let confirmTimer;
+    remove.addEventListener('click', () => {
+      // First press arms the button; a second press within a few seconds deletes.
+      if (!remove.classList.contains('is-confirming')) {
+        remove.classList.add('is-confirming');
+        remove.textContent = '정말 삭제';
+        clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(() => {
+          remove.classList.remove('is-confirming');
+          remove.textContent = '삭제';
+        }, 4000);
+        return;
+      }
+      clearTimeout(confirmTimer);
+      try { localStorage.removeItem(snapshot.key); } catch {
+        feedback.textContent = '배치를 삭제할 수 없어요.';
+        return;
+      }
+      renderSavedLayouts();
+      byId('archive-feedback').textContent = `'${snapshot.name}' 배치를 삭제했어요.`;
+    });
+    row.append(button, remove);
     list.append(row);
   }
 }
