@@ -2096,7 +2096,8 @@ function flipSelected() {
 }
 
 document.addEventListener('keydown', event => {
-  if (byId('layout-archive').open || event.target.closest?.('input, select')) return;
+  // Arrow keys do nothing on buttons or colour pickers, so a panel control keeping focus must not block moving furniture.
+  if (byId('layout-archive').open || event.target.closest?.('input:not([type="color"]), select, textarea')) return;
   const key = event.key.toLowerCase();
   if ((event.ctrlKey || event.metaKey) && (key === 'z' || key === 'y')) {
     event.preventDefault();
@@ -2130,7 +2131,7 @@ document.addEventListener('keydown', event => {
   }
   if (grouped.size) {
     const direction = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[key];
-    if (direction && !event.target.closest?.('button')) {
+    if (direction) {
       event.preventDefault();
       const step = event.shiftKey ? 1 : 10;
       edit(() => moveGroup(grouped, state.poses, direction[0] * step, direction[1] * step));
@@ -2141,7 +2142,7 @@ document.addEventListener('keydown', event => {
   if (key === 'r') rotateSelected();
   if (key === 'f') flipSelected();
   const delta = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[key];
-  if (delta && !event.target.closest('button')) {
+  if (delta) {
     event.preventDefault();
     edit(() => {
       const step = event.shiftKey ? 1 : 10;
