@@ -92,7 +92,6 @@ h1 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 750; letter-sp
 .board, .panel { background: white; border: 1px solid var(--line); border-radius: 13px; }
 .board { min-width: 0; overflow: hidden; }
 .toolbar { min-height: 62px; justify-content: space-between; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.segmented[aria-label="도면 도구"] { flex-wrap: wrap; }
 .segmented { gap: 4px; background: #edf2f8; border-radius: 9px; padding: 4px; }
 .segmented button { border: 0; min-height: 34px; padding: 5px 11px; background: transparent; color: var(--muted); }
 .segmented button[aria-pressed="true"] { color: #204e8b; background: #fff; box-shadow: 0 1px 3px #193c6825; }
@@ -145,9 +144,6 @@ h1 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 750; letter-sp
 .room-handle { --handle-color: #285da4; cursor: ns-resize; }
 #office-entry-handle { --handle-color: #a55431; }
 .viewport[data-mode="create"] #scene, .viewport[data-mode="create"] #scene * { cursor: crosshair; }
-.viewport[data-mode="group"] #scene,
-.viewport[data-mode="group"] #scene :is(.furniture, .room-handle) { cursor: crosshair; }
-.viewport[data-mode="group"] #scene .furniture.is-grouped { cursor: grab; }
 .create-form {
   position: absolute;
   z-index: 1;
@@ -272,7 +268,6 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
         </nav>
         <div class="segmented" aria-label="도면 도구">
           <button id="select-mode" aria-pressed="true" type="button">가구 이동</button>
-          <button id="group-mode" aria-pressed="false" type="button">그룹 선택</button>
           <button id="measure-mode" aria-pressed="false" type="button">거리 측정</button>
           <button id="create-mode" aria-pressed="false" type="button">가구 생성</button>
           <button id="erase-mode" aria-pressed="false" type="button" title="측정선 지우개 (E)"><span class="eraser-icon" aria-hidden="true"></span>지우개</button>
@@ -954,6 +949,7 @@ function switchLayout(floor, plan = 1, openBase = false) {
   redoStack = saved?.redoStack ?? [];
   view = saved?.view ?? [...PLAN.viewBox];
   selected = planNumber ? 'copier' : null;
+  grouped.clear();
   nameEditorItem = null;
   shownGap = null;
   gapHidden = false;
@@ -982,12 +978,8 @@ scene.addEventListener('keydown', event => {
   const target = event.target.closest?.('[data-item]');
   if (gesture || !target || !['Enter', ' '].includes(event.key)) return;
   event.preventDefault();
-  if (mode === 'group') {
-    toggleGroupedItem(target.dataset.item);
-  } else {
-    setMode('select');
-    selectItem(target.dataset.item);
-  }
+  setMode('select');
+  selectItem(target.dataset.item);
 });
 
 function toast(message) {
@@ -1042,6 +1034,7 @@ function travel(from, to) {
 }
 
 function selectItem(id) {
+  grouped.clear();
   if (selected !== id) { shownGap = null; gapHidden = false; }
   selected = id;
   draw();
@@ -1057,18 +1050,10 @@ function setMode(next) {
   mode = next;
   viewport.dataset.mode = mode;
   byId('select-mode').setAttribute('aria-pressed', mode === 'select');
-  byId('group-mode').setAttribute('aria-pressed', mode === 'group');
   byId('measure-mode').setAttribute('aria-pressed', mode === 'measure');
   byId('erase-mode').setAttribute('aria-pressed', mode === 'erase');
   byId('create-mode').setAttribute('aria-pressed', mode === 'create');
   byId('create-form').hidden = mode !== 'create';
-  draw();
-}
-
-function toggleGroupedItem(id) {
-  if (!items.has(id)) return;
-  if (grouped.has(id)) grouped.delete(id);
-  else grouped.add(id);
   draw();
 }
 
@@ -1088,13 +1073,19 @@ function drawGroupBox(a, b) {
 
 function selectGroupBox(a, b) {
   const { x, y, width, height } = groupBox(a, b);
-  grouped.clear();
-  if (width > 0 && height > 0) {
-    const selection = Geometry.shape(rectangle(width, height, x, y));
-    for (const id of items.keys()) {
-      if (Geometry.overlap(selection, plotted.get(id))) grouped.add(id);
-    }
+  const ids = [...items.keys()].filter(id => {
+    const { minX, minY, maxX, maxY } = plotted.get(id).bounds;
+    return minX >= x && minY >= y && maxX <= x + width && maxY <= y + height;
+  });
+  if (ids.length < 2) {
+    selectItem(ids[0] ?? null);
+    return;
   }
+  grouped.clear();
+  for (const id of ids) grouped.add(id);
+  selected = null;
+  shownGap = null;
+  gapHidden = false;
   draw();
 }
 
@@ -1516,19 +1507,9 @@ function drawSelection(gaps, collisionNames) {
   empty.hidden = Boolean(selected);
   swatch.hidden = !selected;
   const item = items.get(selected);
-  if (mode === 'group') {
-    const count = grouped.size ? grouped.size + '개 선택됨' : '가구를 드래그해 선택하세요';
-    detail.hidden = true;
-    empty.hidden = false;
-    empty.textContent = count;
-    swatch.hidden = true;
-    byId('mobile-selection').textContent = count;
-    byId('rotate').disabled = byId('flip').disabled = true;
-    byId('delete-custom').hidden = true;
-    return;
-  }
-  empty.textContent = '도면에서 가구를 선택하세요.';
-  byId('mobile-selection').textContent = item ? displayedName(item) : '가구를 선택하세요';
+  const groupStatus = grouped.size ? grouped.size + '개 선택됨' : null;
+  empty.textContent = groupStatus ?? '도면에서 가구를 선택하세요.';
+  byId('mobile-selection').textContent = item ? displayedName(item) : groupStatus ?? '가구를 선택하세요';
   byId('rotate').disabled = byId('flip').disabled = !item || mode !== 'select';
   byId('delete-custom').hidden = !item?.custom || mode !== 'select';
   if (!selected) {
@@ -1576,14 +1557,13 @@ function draw() {
   let gaps = [];
   for (const item of items.values()) {
     const object = plotted.get(item.id);
-    const active = mode !== 'group' && item.id === selected;
-    const inGroup = mode === 'group' && grouped.has(item.id);
+    const active = item.id === selected;
     const neighbours = all.filter(other => other.id !== item.id);
     const hasCollision = neighbours.some(other => isCollision(object, other));
     item.node.classList.toggle('is-selected', active);
     item.node.classList.toggle('has-collision', hasCollision);
-    item.node.classList.toggle('is-grouped', inGroup);
-    item.node.setAttribute('aria-pressed', active || inGroup);
+    item.node.classList.toggle('is-grouped', grouped.has(item.id));
+    item.node.setAttribute('aria-pressed', active || grouped.has(item.id));
     if (active) {
       gaps = neighbours.map(other => ({ id: other.id, name: other.name, collision: isCollision(object, other),
         ...Geometry.closestEdges(object.edges, other.edges) }))
@@ -1605,14 +1585,11 @@ function draw() {
   }
   byId('board-hint').textContent = mode === 'measure'
     ? (pendingAnchor ? '두 번째 지점을 선택하세요' : '거리의 첫 지점을 선택하세요 · 가까운 가구 모서리에 맞춰집니다')
-    : mode === 'group' ? (grouped.size ? '선택한 가구 중 하나를 끌어 함께 이동하세요'
-      : '사각형을 그려 가구를 선택하세요 · 가구를 눌러 개별 선택')
     : mode === 'erase' ? '지울 측정선이나 숫자를 누르세요'
       : mode === 'create' ? (deskPresets.has(byId('create-kind').value) ? '책상을 놓을 위치를 누르세요'
         : '사각형을 끌어 그리거나, 치수를 입력하고 놓을 자리를 누르세요')
-        : state.room ? '가구를 끌어 이동 · 대표이사실 벽과 왼쪽 출입문은 손잡이를 끌어 조절'
-        : planNumber ? '가구를 끌어 이동 · 왼쪽 출입문은 손잡이를 끌어 조절'
-          : '가구를 생성하거나 끌어서 이동하세요';
+        : grouped.size ? '선택한 가구 중 하나를 끌어 함께 이동하세요'
+          : '가구를 끌어 이동 · 빈 곳에서 드래그해 여러 가구 선택';
   updateHistory();
 }
 
@@ -1724,31 +1701,20 @@ scene.addEventListener('pointerdown', event => {
     scene.setPointerCapture(event.pointerId);
     return;
   }
-  if (mode === 'group') {
-    const id = event.target.closest('[data-item]')?.getAttribute('data-item');
-    const inverse = scene.getScreenCTM().inverse();
-    const point = screenPoint(event.clientX, event.clientY, inverse);
-    const groupIds = grouped.has(id) ? [...grouped] : null;
-    gesture = { pointer: event.pointerId, id, point, inverse, group: true, groupIds,
-      startState: groupIds ? copyState(state) : null, moved: false };
-    event.preventDefault();
-    scene.setPointerCapture(event.pointerId);
-    return;
-  }
   const hit = event.target.closest('[data-item], [data-room-handle]');
-  if (!hit) {
-    gesture = { pointer: event.pointerId, background: true, point: [event.clientX, event.clientY], moved: false };
-    event.preventDefault();
-    scene.setPointerCapture(event.pointerId);
-    return;
-  }
-  const id = hit.getAttribute('data-item');
-  const roomHandle = hit.getAttribute('data-room-handle');
   const inverse = scene.getScreenCTM().inverse();
   const point = screenPoint(event.clientX, event.clientY, inverse);
-  hit.focus({ preventScroll: true });
-  selectItem(id);
-  gesture = { pointer: event.pointerId, id, roomHandle, point, inverse, startState: copyState(state), moved: false };
+  if (hit) {
+    const id = hit.getAttribute('data-item');
+    const roomHandle = hit.getAttribute('data-room-handle');
+    const groupIds = grouped.has(id) ? [...grouped] : null;
+    hit.focus({ preventScroll: true });
+    if (!groupIds) selectItem(id);
+    gesture = { pointer: event.pointerId, id, roomHandle, groupIds, point, inverse,
+      startState: copyState(state), moved: false };
+  } else {
+    gesture = { pointer: event.pointerId, marquee: true, point, inverse, moved: false };
+  }
   event.preventDefault();
   scene.setPointerCapture(event.pointerId);
 });
@@ -1768,29 +1734,25 @@ scene.addEventListener('pointermove', event => {
     return;
   }
   if (gesture.pointer !== event.pointerId) return;
-  if (gesture.background) {
-    if (Geometry.distance(gesture.point, [event.clientX, event.clientY]) >= 3) gesture.moved = true;
-    return;
-  }
   const point = screenPoint(event.clientX, event.clientY, gesture.inverse);
   const delta = [point[0] - gesture.point[0], point[1] - gesture.point[1]];
   const motion = gesture.roomHandle ? Math.abs(delta[1]) : Math.hypot(...delta);
   if (!gesture.moved && motion * Math.abs(scene.getScreenCTM().a) < 3) return;
   gesture.moved = true;
+  if (gesture.marquee) {
+    drawGroupBox(gesture.point, point);
+    return;
+  }
   if (gesture.create) {
     drawCreationPreview(furniturePlacement(gesture.point, point, true));
     return;
   }
   const step = event.altKey ? 1 : 10;
-  if (gesture.group) {
-    if (!gesture.groupIds) {
-      drawGroupBox(gesture.point, point);
-      return;
-    }
+  if (gesture.roomHandle) {
+    moveRoomControl(gesture.roomHandle, gesture.startState, delta[1], step);
+  } else if (gesture.groupIds) {
     viewport.classList.add('is-dragging');
     moveGroupGesture(gesture, point, step);
-  } else if (gesture.roomHandle) {
-    moveRoomControl(gesture.roomHandle, gesture.startState, delta[1], step);
   } else {
     viewport.classList.add('is-dragging');
     const start = gesture.startState.poses[gesture.id];
@@ -1806,31 +1768,15 @@ function endGesture(event, cancelled = false) {
   const active = gesture;
   gesture = null;
   viewport.classList.remove('is-dragging');
-  if (active.background) {
-    if (!cancelled && !active.moved && Geometry.distance(active.point, [event.clientX, event.clientY]) < 3) {
-      selectItem(null);
-    }
-    return;
-  }
-  if (active.group) {
+  if (active.marquee) {
     drawCreationPreview(null);
-    if (cancelled) {
-      if (active.groupIds) state = active.startState;
-      draw();
-      return;
-    }
-    const point = screenPoint(event.clientX, event.clientY, active.inverse);
-    const moved = active.moved || Geometry.distance(active.point, point) * Math.abs(scene.getScreenCTM().a) >= 3;
-    if (moved && active.groupIds) {
-      moveGroupGesture(active, point, event.altKey ? 1 : 10);
-      commit(active.startState);
-    } else if (moved) {
-      selectGroupBox(active.point, point);
-    } else if (active.id) {
-      toggleGroupedItem(active.id);
-    } else {
-      grouped.clear();
-      draw();
+    if (!cancelled) {
+      const point = screenPoint(event.clientX, event.clientY, active.inverse);
+      if (active.moved || Geometry.distance(active.point, point) * Math.abs(scene.getScreenCTM().a) >= 3) {
+        selectGroupBox(active.point, point);
+      } else {
+        selectItem(null);
+      }
     }
     return;
   }
@@ -1847,7 +1793,12 @@ function endGesture(event, cancelled = false) {
   if (cancelled) {
     state = active.startState;
     draw();
-  } else commit(active.startState);
+  } else {
+    if (active.groupIds && active.moved) {
+      moveGroupGesture(active, screenPoint(event.clientX, event.clientY, active.inverse), event.altKey ? 1 : 10);
+    }
+    commit(active.startState);
+  }
 }
 scene.addEventListener('pointerleave', () => annotations.querySelector('.is-erase-target')?.classList.remove('is-erase-target'));
 scene.addEventListener('pointerup', endGesture);
@@ -1876,18 +1827,10 @@ document.addEventListener('keydown', event => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   if (key === 'escape') {
     if (mode === 'measure') { pendingAnchor = currentAnchor = null; draw(); }
-    else if (mode === 'erase' || mode === 'create' || mode === 'group') setMode('select');
+    else if (mode === 'erase' || mode === 'create') setMode('select');
     else selectItem(null);
   }
   if (key === 'e' && !gesture) setMode(mode === 'erase' ? 'select' : 'erase');
-  if (mode === 'group' && !gesture && grouped.size) {
-    const direction = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[key];
-    if (direction && !event.target.closest?.('button')) {
-      event.preventDefault();
-      const step = event.shiftKey ? 1 : 10;
-      edit(() => moveGroup(grouped, copyState(state.poses), direction[0] * step, direction[1] * step));
-    }
-  }
   if (mode !== 'select' || gesture) return;
   const handle = event.target.closest?.('[data-room-handle]');
   if (handle) {
@@ -1902,6 +1845,15 @@ document.addEventListener('keydown', event => {
     if (delta !== undefined) {
       event.preventDefault();
       edit(() => moveRoomControl(name, state, delta, 1));
+    }
+    return;
+  }
+  if (grouped.size) {
+    const direction = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[key];
+    if (direction && !event.target.closest?.('button')) {
+      event.preventDefault();
+      const step = event.shiftKey ? 1 : 10;
+      edit(() => moveGroup(grouped, state.poses, direction[0] * step, direction[1] * step));
     }
     return;
   }
@@ -1920,7 +1872,6 @@ document.addEventListener('keydown', event => {
 });
 
 byId('select-mode').onclick = () => setMode('select');
-byId('group-mode').onclick = () => setMode(mode === 'group' ? 'select' : 'group');
 byId('measure-mode').onclick = () => setMode('measure');
 byId('create-mode').onclick = () => setMode(mode === 'create' ? 'select' : 'create');
 byId('cancel-create').onclick = () => { setMode('select'); byId('create-mode').focus(); };
