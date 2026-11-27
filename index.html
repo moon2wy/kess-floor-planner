@@ -259,6 +259,11 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
 #archive-list li + li { margin-top: 6px; }
 #archive-list button { width: 100%; text-align: start; overflow-wrap: anywhere; }
 #archive-list small { display: block; color: #526576; }
+.archive-share { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e3eaf1; }
+.archive-share h3 { margin: 0; font-size: 15px; color: #203347; }
+.archive-help { font-size: 13px; line-height: 1.5; color: #526576; margin: 4px 0 9px; }
+.archive-share-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.archive-share-actions button { flex: 1; }
 
 @page { size: A4 portrait; margin: 8mm; }
 @media print {
@@ -297,6 +302,22 @@ h3 { margin-top: 14px; color: var(--muted); font-size: 14px; }
       <button type="submit" class="primary">저장</button>
     </form>
     <ul id="archive-list" aria-label="저장된 배치"></ul>
+    <section id="archive-share" class="archive-share" aria-labelledby="archive-share-title">
+      <h3 id="archive-share-title">다른 사람과 공유</h3>
+      <p class="archive-help">지금 화면의 배치를 파일이나 링크로 보내면, 받는 사람이 자기 컴퓨터에서 그대로 불러올 수 있어요. 위에 배치 이름을 적으면 그 이름으로 보내져요.</p>
+      <div class="archive-share-actions">
+        <button id="export-layout-file" type="button">파일로 내려받기</button>
+        <button id="copy-layout-link" type="button">공유 링크 복사</button>
+      </div>
+    </section>
+    <section id="archive-import" class="archive-share" aria-labelledby="archive-import-title">
+      <h3 id="archive-import-title">받은 배치 파일</h3>
+      <p class="archive-help">공유받은 배치 파일(.json)을 고르면 그 층·안으로 이동해서 불러와요. 지금 배치는 목록에 자동 저장돼요.</p>
+      <div class="archive-share-actions">
+        <button id="import-layout-file" type="button">파일에서 불러오기</button>
+      </div>
+      <input id="import-layout-input" type="file" accept=".json,application/json" hidden>
+    </section>
   </dialog>
 
   <main class="workspace">
@@ -2165,6 +2186,8 @@ function openLayoutArchive(saving) {
   byId('archive-feedback').textContent = '';
   byId('archive-name-form').hidden = !saving;
   byId('archive-list').hidden = saving;
+  byId('archive-share').hidden = !saving;
+  byId('archive-import').hidden = saving;
   if (saving) byId('archive-name').value = '';
   else renderSavedLayouts();
   dialog.showModal();
@@ -2216,17 +2239,142 @@ function saveLayoutSnapshot(event) {
     feedback.textContent = '배치 이름을 입력하세요.';
     return;
   }
-  const created = Date.now();
-  const id = globalThis.crypto?.randomUUID?.() ?? (created + '-' + Math.random().toString(36).slice(2));
-  try {
-    const snapshot = { name, created, layout: { ...state, layoutVersion } };
-    localStorage.setItem(snapshotPrefix() + id, JSON.stringify(snapshot));
-  } catch {
+  if (!storeSnapshot(name)) {
     feedback.textContent = '배치를 저장할 수 없어요. 브라우저 저장공간을 확인하세요.';
     return;
   }
   byId('layout-archive').close();
   toast('배치를 저장했어요.');
+}
+
+function storeSnapshot(name) {
+  const created = Date.now();
+  const id = globalThis.crypto?.randomUUID?.() ?? (created + '-' + Math.random().toString(36).slice(2));
+  try {
+    const snapshot = { name, created, layout: { ...state, layoutVersion } };
+    localStorage.setItem(snapshotPrefix() + id, JSON.stringify(snapshot));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---- 배치 공유: 파일(.json)과 링크(#layout=...) ----
+const shareHashPrefix = '#layout=';
+
+function sharePayload() {
+  return {
+    app: 'kess-floor-planner', format: 1,
+    floor: floorNumber, plan: planNumber || 0, revision: PLAN.revision,
+    name: byId('archive-name').value.trim().slice(0, 60) || planName,
+    created: Date.now(),
+    layout: { ...copyState(state), layoutVersion },
+  };
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlToBytes(text) {
+  const binary = atob(text.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((text.length + 3) % 4));
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+async function packLayout(payload) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  if (typeof CompressionStream === 'function') {
+    try {
+      const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      return 'z' + bytesToBase64Url(new Uint8Array(await new Response(stream).arrayBuffer()));
+    } catch { /* Fall back to an uncompressed link. */ }
+  }
+  return 'j' + bytesToBase64Url(bytes);
+}
+
+async function unpackLayout(text) {
+  let bytes = base64UrlToBytes(text.slice(1));
+  if (text[0] === 'z') {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  } else if (text[0] !== 'j') {
+    throw new Error('unknown layout link');
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function localDate() {
+  const now = new Date();
+  return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+}
+
+function downloadLayoutFile() {
+  if (gesture) return;
+  const payload = sharePayload();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const name = payload.name.replace(/[\\/:*?"<>|]/g, '').replace(/\s*·\s*/g, '_').replace(/\s+/g, '_');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `KESS_배치_${name}_${localDate()}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 2000);
+  toast('배치 파일을 내려받았어요. 메일이나 메신저로 보내 주세요.');
+}
+
+async function copyLayoutLink() {
+  if (gesture) return;
+  const link = new URL(location.pathname, location.origin);
+  link.hash = shareHashPrefix.slice(1) + await packLayout(sharePayload());
+  try {
+    await navigator.clipboard.writeText(link.href);
+    toast('공유 링크를 복사했어요. 받는 사람이 열면 이 배치가 그대로 불러와져요.');
+  } catch {
+    window.prompt('공유 링크를 복사하세요.', link.href);
+  }
+}
+
+function applySharedLayout(payload) {
+  if (payload?.app !== 'kess-floor-planner' || !Object.hasOwn(UPPER_FLOORS, payload.floor) && payload.floor !== 2
+      || !payload.layout || typeof payload.layout !== 'object') {
+    toast('KESS 배치 파일이 아니거나 읽을 수 없어요.');
+    return false;
+  }
+  if (gesture) return false;
+  const dialog = byId('layout-archive');
+  if (dialog.open) dialog.close();
+  switchLayout(payload.floor, payload.plan === 2 ? 2 : 1);
+  const backedUp = !sameState(state, fresh()) && storeSnapshot('불러오기 전 자동 저장');
+  const layout = restoreLayout(payload.layout);
+  pendingAnchor = currentAnchor = null;
+  grouped.clear();
+  shownGap = null;
+  gapHidden = false;
+  if (!Object.hasOwn(layout.poses, selected)) selected = null;
+  edit(() => { state = layout; });
+  setMode('select');
+  const name = typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim().slice(0, 60) : planName;
+  toast(`'${name}' 배치를 불러왔어요.` + (backedUp ? ' 원래 배치는 배치 불러오기 목록에 자동 저장했어요.' : ''));
+  return true;
+}
+
+async function importLayoutFile(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  const feedback = byId('archive-feedback');
+  if (file.size > 2000000) {
+    feedback.textContent = '파일이 너무 커요. 배치 파일(.json)을 골라 주세요.';
+    return;
+  }
+  try {
+    if (!applySharedLayout(JSON.parse(await file.text()))) feedback.textContent = 'KESS 배치 파일이 아니에요.';
+  } catch {
+    feedback.textContent = '배치 파일을 읽을 수 없어요.';
+  }
 }
 
 function loadLayoutSnapshot(snapshot) {
@@ -2246,6 +2394,10 @@ byId('save-layout').onclick = () => openLayoutArchive(true);
 byId('load-layout').onclick = () => openLayoutArchive(false);
 byId('close-archive').onclick = () => byId('layout-archive').close();
 byId('archive-name-form').onsubmit = saveLayoutSnapshot;
+byId('export-layout-file').onclick = downloadLayoutFile;
+byId('copy-layout-link').onclick = copyLayoutLink;
+byId('import-layout-file').onclick = () => byId('import-layout-input').click();
+byId('import-layout-input').onchange = importLayoutFile;
 byId('select-mode').onclick = () => setMode('select');
 byId('measure-mode').onclick = () => setMode('measure');
 byId('create-mode').onclick = () => setMode(mode === 'create' ? 'select' : 'create');
@@ -2445,6 +2597,11 @@ if (openBase) {
   try { history.replaceState(null, '', openingUrl); } catch { /* URL history may be unavailable in a preview. */ }
 }
 switchLayout(initialFloor, initialPlan, openBase);
+if (location.hash.startsWith(shareHashPrefix)) {
+  const packed = location.hash.slice(shareHashPrefix.length);
+  try { history.replaceState(null, '', location.pathname + location.search); } catch { /* Preview may block history. */ }
+  unpackLayout(packed).then(applySharedLayout).catch(() => toast('공유 링크의 배치를 읽을 수 없어요. 링크가 잘리지 않았는지 확인하세요.'));
+}
 </script>
 </body>
 </html>
