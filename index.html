@@ -1325,7 +1325,7 @@ function updateFurnitureName(item, pose) {
   const sideways = pose.angle % 180 !== 0;
   if (item.nameLabel && name === item.renderedName && sideways === item.renderedSideways) return;
   if (!item.detailLabels) item.detailLabels = item.labels;
-  const area = item.nameArea;
+  const area = sideways && item.rotatedNameArea ? item.rotatedNameArea : item.nameArea;
   item.nameLabel?.remove();
   const label = svgEl('text', { 'text-anchor': 'middle', 'font-weight': 700, fill: item.nameColor ?? item.color });
   item.node.append(label);
@@ -1352,6 +1352,8 @@ function officeDesk(w, h, right) {
     path: 'M' + mirror(0) + ' 0 H' + mirror(w) + ' V700 H' + mirror(850)
       + ' Q' + mirror(700) + ' 700 ' + mirror(700) + ' 850 V' + h + ' H' + mirror(0) + ' Z',
     labelArea: [45, 45, w - 90, 610],
+    // When turned sideways, the deep side of the L gives upright text more width.
+    rotatedLabelArea: [right ? w - 665 : 35, 35, 630, h - 70],
     chair: [mirror(w === 1400 ? (700 + w) / 2 : w - 470), h - 120],
   };
 }
@@ -1384,7 +1386,8 @@ function syncCustomFurniture() {
     node.append(svgEl('polygon', { class: 'object-outline', 'aria-hidden': 'true',
       points: outline.map(point => point.join(',')).join(' ') }));
     byId('furniture-layer').append(node);
-    items.set(id, { id, name, color, center, outline, w, h, kind, node, custom: true, nameArea, labels: [] });
+    items.set(id, { id, name, color, center, outline, w, h, kind, node, custom: true,
+      nameArea, rotatedNameArea: desk?.rotatedLabelArea, labels: [] });
   }
 }
 
